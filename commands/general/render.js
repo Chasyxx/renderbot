@@ -39,7 +39,7 @@ export const data = {
 
 /** @param {import('discord.js').CommandInteraction} interaction */
 export async function execute(interaction) {
-    const link = interaction.options?.link||'invalid';
-    const duration = Math.abs(interaction.options?.duration)||30;
+    const link = interaction.options.getString('link',true)||'invalid';
+    const duration = Math.abs(interaction.options.getNumber('duration',false))||30;
     await renderCodeWrapperInteraction(interaction,link,duration)
 }

@@ -56,7 +56,7 @@ export async function renderCodeWrapperInteraction(interaction, link, duration =
     worker.on('message', async ({ error, file, truncated }) => {
         if (error == null) {
             const fileData = readFileSync(file);
-            const attachment = new AttachmentBuilder(fileData, { name: 'render.wav' });
+            const attachment = new AttachmentBuilder(fileData, { name: file });
             if (button) await msg.delete();
             await interaction.followUp(
                 {
@@ -120,7 +120,7 @@ export async function renderCodeWrapperMessage(message, link) {
             worker.on('message', async ({ error, file, truncated }) => {
             if (error == null) {
                 const fileData = readFileSync(file);
-                const attachment = new AttachmentBuilder(fileData, { name: 'render.wav' });
+                const attachment = new AttachmentBuilder(fileData, { name: file });
                 await msg.delete();
                 await message.reply(
                     {

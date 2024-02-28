@@ -239,7 +239,7 @@ export function renderCode(samplerate, mode, codeString, lengthValue = 10, stere
 
 	const final = Buffer.concat([header, buffer]);
 
-	const outputFile = "output" + String(Math.floor(Math.random() * 15)) + ".wav";
+	const outputFile = "output" + String(Date.now()) + ".wav";
 
 	fs.writeFileSync(outputFile, final);
 	return { error: null, file: outputFile, truncated };

@@ -16,24 +16,50 @@
 
 //     Email contact is at creset200@gmail.com
 
-import { renderCode } from './bytebeat to audio.mjs';
+import { renderCode, EE } from './bytebeat to audio.mjs';
 import { workerData, isMainThread, parentPort } from 'node:worker_threads';
 
-if(isMainThread) {
+if (isMainThread) {
     console.error("Worker file shouldn't be run directly!");
     process.exit(1);
 }
 
-if(process.env.NODE_NO_WARNINGS==1) console.log = console.warn = console.error = console.debug = () => { return; };
+if (process.env.NODE_NO_WARNINGS == 1) console.log = console.warn = console.error = console.debug = () => { return; };
+
+let maxLength = 4096;
+
+EE.on('len', m => {
+    maxLength = m;
+});
+
+EE.on('compile', len => {
+    parentPort.postMessage({ status: "compile", len });
+});
+
+EE.on('compileFuncbeat', () => {
+    parentPort.postMessage({ status: "funcbeat" });
+});
+
+EE.on('index', i => {
+    parentPort.postMessage({ index: i, max: maxLength });
+});
+
+EE.on('done', (h, f, s) => {
+    parentPort.postMessage({ status: 'done', h, f, s });
+});
+
+EE.on('prep', () => {
+    parentPort.postMessage({ status: 'prep' });
+});
 
 let x;
 try {
-    x = renderCode(workerData.SR, workerData.M, workerData.code, workerData.D, null);
+    x = renderCode(workerData.SR, workerData.M, workerData.code, workerData.D, null, false, 2, null);
 } catch (e) {
     x = { error: e.message ?? e, file: null };
 }
 
-parentPort.postMessage(x)
+parentPort.postMessage({ finished: x })
 
 // if(x!==null) {
 

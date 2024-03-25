@@ -73,7 +73,7 @@ const djsClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntent
 				}
 			}
 		} else if (interaction.customId == 'full') {
-			const link = interaction.message.content.match(/https:\/\/dollchan.net\/bytebeat\/#.+?(?=>)/)[0];
+			const link = interaction.message.content.match(/https:\/\/dollchan.net\/bytebeat\/(index.html)?#.+?(?=>)/)[0];
 			renderCodeWrapperInteraction(interaction, link, 60, true);
 		}
 	});

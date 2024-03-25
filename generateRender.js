@@ -20,6 +20,7 @@ import { inflateRaw } from 'pako';
 import { readFileSync, unlinkSync } from 'fs';
 import { AttachmentBuilder, DiscordAPIError } from 'discord.js';
 import { Worker } from 'worker_threads';
+import { progressBar } from './bytebeat to audio.mjs';
 
 function _btoa($) {
     return Buffer.from($, 'binary').toString('base64');
@@ -53,33 +54,63 @@ export async function renderCodeWrapperInteraction(interaction, link, duration =
     if (!button) { await interaction.deferReply() }
     else msg = await interaction.reply({ content: 'Rendering started!' });
     const worker = new Worker('./rendererWorker.mjs', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? 3 : songData.mode == "Floatbeat" ? 2 : songData.mode == "Signed Bytebeat" ? 1 : 0, D: duration, code: songData.code } });
-    worker.on('message', async ({ error, file, truncated }) => {
-        if (error == null) {
-            const fileData = readFileSync(file);
-            const attachment = new AttachmentBuilder(fileData, { name: file });
-            if (button) await msg.delete();
-            await interaction.followUp(
-                {
-			content: link.length > 1900 ? `*${songData.sampleRate || 8000}hz ${songData.mode || "Bytebeat"}*` : `*[Rendered code](<${link}>), ${songData.sampleRate || 8000}hz ${songData.mode || "Bytebeat"}*` + (truncated ? " (Truncated) " : "")+ (button ? `\nRequested by <@${interaction.member.user.id}>` : ''),
-                    files: [attachment],
-                    components: duration >= 60 || link.length > 1900 || songData.sampleRate > 48000 ? undefined : [
-                        {
-                            type: 1,
-                            components: [
-                                {
-                                    type: 2,
-                                    label: '60 second render',
-                                    style: 1,
-                                    custom_id: 'full'
-                                }
-                            ]
-                        }
-                    ]
-                })
-            unlinkSync(file);
-        } else {
-            if (button) await msg.delete();
-            await interaction.followUp({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error}\n\`\`\`` })
+    worker.on('message', async (eventMessage) => {
+
+        if (eventMessage.status) {
+            switch (eventMessage.status) {
+                case 'prep': {
+                    console.log(progressBar(0, 1, 40));
+                    break;
+                }
+                case 'done': {
+                    console.log("HEADER", eventMessage.h);
+                    console.log("FILE %s SIZE %s", eventMessage.f, eventMessage.s);
+                    break;
+                }
+                case 'compile': default: {
+                    console.log("Compiling %d", eventMessage.len);
+                    break;
+                }
+                case 'funcbeat': {
+                    console.log("Functionizing a code...");
+                    break;
+                }
+            }
+        }
+
+        if (eventMessage.index) {
+            console.log('\x1b[1A%s %d / %d', progressBar(eventMessage.index, eventMessage.max, 40), eventMessage.index, eventMessage.max);
+        }
+
+        if (eventMessage.finished) {
+            const { error, file, truncated } = eventMessage.finished;
+            if (error == null) {
+                const fileData = readFileSync(file);
+                const attachment = new AttachmentBuilder(fileData, { name: file });
+                if (button) await msg.delete();
+                await interaction.followUp(
+                    {
+                        content: link.length > 1900 ? `*${songData.sampleRate || 8000}hz ${songData.mode || "Bytebeat"}*` : `*[Rendered code](<${link}>), ${songData.sampleRate || 8000}hz ${songData.mode || "Bytebeat"}*` + (truncated ? " (Truncated) " : "") + (button ? `\nRequested by <@${interaction.member.user.id}>` : ''),
+                        files: [attachment],
+                        components: duration >= 60 || link.length > 1900 || songData.sampleRate > 48000 ? undefined : [
+                            {
+                                type: 1,
+                                components: [
+                                    {
+                                        type: 2,
+                                        label: '60 second render',
+                                        style: 1,
+                                        custom_id: 'full'
+                                    }
+                                ]
+                            }
+                        ]
+                    })
+                unlinkSync(file);
+            } else {
+                if (button) await msg.delete();
+                await interaction.followUp({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error}\n\`\`\`` });
+            }
         }
     })
 }
@@ -114,37 +145,66 @@ export async function renderCodeWrapperMessage(message, link) {
             }
         }
         const worker = new Worker('./rendererWorker.mjs', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? 3 : songData.mode == "Floatbeat" ? 2 : songData.mode == "Signed Bytebeat" ? 1 : 0, D: Math.min(2_880_000 / songData.sampleRate, 30), code: songData.code } });
-            worker.on('messageerror', (e)=>{
-		console.error(e);
-	    });
-            worker.on('message', async ({ error, file, truncated }) => {
-            if (error == null) {
-                const fileData = readFileSync(file);
-                const attachment = new AttachmentBuilder(fileData, { name: file });
-                await msg.delete();
-                await message.reply(
-                    {
-			    content: (link.length > 1900 ? `*Render, ${songData.sampleRate}hz ${songData.mode || "Bytebeat"}*` : `*[Rendered code](<${link}>), ${songData.sampleRate}hz ${songData.mode || "Bytebeat"}*`) + ( truncated ? " (Truncated)" : "" ),
-                        files: [attachment],
-                        components: songData.sampleRate > 48000 || link.length > 1900 ? undefined : [
-                            {
-                                type: 1,
-                                components: [
-                                    {
-                                        type: 2,
-                                        label: '60 second render',
-                                        style: 1,
-                                        custom_id: 'full'
-                                    }
-                                ]
-                            }
-                        ]
-                    })
-                unlinkSync(file);
-            } else {
-                await message.react("\u2755");
-                await msg.delete();
-                await message.reply({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error}\n\`\`\`` })
+        worker.on('messageerror', (e) => {
+            console.error(e);
+        });
+        worker.on('message', async (eventMessage) => {
+            if (eventMessage.status) {
+                switch (eventMessage.status) {
+                    case 'prep': {
+                        console.log(progressBar(0, 1, 40));
+                        break;
+                    }
+                    case 'done': {
+                        console.log("HEADER", eventMessage.h);
+                        console.log("FILE %s SIZE %s", eventMessage.f, eventMessage.s);
+                        break;
+                    }
+                    case 'compile': default: {
+                        console.log("Compiling %d", eventMessage.len);
+                        break;
+                    }
+                    case 'funcbeat': {
+                        console.log("Functionizing a code...");
+                        break;
+                    }
+                }
+            }
+
+            if (eventMessage.index) {
+                console.log('\x1b[1A%s %d / %d', progressBar(eventMessage.index, eventMessage.max, 40), eventMessage.index, eventMessage.max);
+            }
+
+            if (eventMessage.finished) {
+                const { error, file, truncated } = eventMessage.finished;
+                if (error == null) {
+                    const fileData = readFileSync(file);
+                    const attachment = new AttachmentBuilder(fileData, { name: file });
+                    await msg.delete();
+                    await message.reply(
+                        {
+                            content: (link.length > 1900 ? `*Render, ${songData.sampleRate}hz ${songData.mode || "Bytebeat"}*` : `*[Rendered code](<${link}>), ${songData.sampleRate}hz ${songData.mode || "Bytebeat"}*`) + (truncated ? " (Truncated)" : ""),
+                            files: [attachment],
+                            components: songData.sampleRate > 48000 || link.length > 1900 ? undefined : [
+                                {
+                                    type: 1,
+                                    components: [
+                                        {
+                                            type: 2,
+                                            label: '60 second render',
+                                            style: 1,
+                                            custom_id: 'full'
+                                        }
+                                    ]
+                                }
+                            ]
+                        })
+                    unlinkSync(file);
+                } else {
+                    await message.react("\u2755");
+                    await msg.delete();
+                    await message.reply({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error}\n\`\`\`` })
+                }
             }
         })
     } catch (_) {

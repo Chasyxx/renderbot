@@ -16,6 +16,7 @@
 
 //     Email contact is at creset200@gmail.com
 
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 const chasyxxPlayerAdditions = {
 	/*bit*/        "bitC": function (x, y, z) { return x & y ? z : 0 },
@@ -38,22 +39,21 @@ const chasyxxPlayerAdditions = {
 
 let bitsPerSample = 8;
 
-function int32to4char(input) {
+function write32(input) {
 	const buffer = Buffer.alloc(4);
 	buffer.writeUInt32LE(input, 0);
 	return buffer;
 }
 
-function int16to2char(input) {
+function write16(input) {
 	const buffer = Buffer.alloc(2);
 	buffer.writeUInt16LE(input, 0);
 	return buffer;
 }
 
-function indicator(val, max, barSize = 20) {
-	const first = `\x1b[106m\x1b[30m[\x1b[0m${''.padStart(Math.floor((val / max) * barSize), '#').padEnd(barSize, '.')}\x1b[106m\x1b[30m]`.padEnd(68).replaceAll('#', '\x1b[47m#\x1b[0m').replaceAll('.', '\x1b[30m.\x1b[0m')
-	const second = `(${String(val).padStart(12, ".")} / ${String(max).padEnd(12, ".")})\x1b[0m`;
-	return first + second
+export function progressBar(val, max, barSize = 20) {
+	let step = Math.max(0, Math.min(barSize, val / max * barSize));
+	return `\x1b[0;36;7m[${'#'.repeat(step).padEnd(barSize, '.').replace(/\./g, '\x1b[0m.').replace(/\#/g, '\x1b[0;7m#')}\x1b[0;36;7m]\x1b[0m`;
 }
 
 function visualizer(array) {
@@ -67,10 +67,10 @@ function visualizer(array) {
 				case 0: out += ' '; break
 				case 1: out += '.'; break
 				case 2: out += ','; break
-				case 3: out += ','; break
-				case 4: out += ':'; break
-				case 5: out += ';'; break
-				case 6: out += '|'; break
+				case 3: out += ':'; break
+				case 4: out += ';'; break
+				case 5: out += '|'; break
+				case 6: out += '#'; break
 			}
 		}
 		out += '\n'
@@ -107,8 +107,11 @@ function formatFileSize(bytes) {
 	return iga + " / " + ibi;
 }
 
-export function renderCode(samplerate, mode, codeString, lengthValue = 10, stereo, useChasyxxPlayerAdditions = false) {
+export const EE = new EventEmitter();
+
+export function renderCode(samplerate, mode, codeString, lengthValue = 10, stereo, useChasyxxPlayerAdditions = false, printStats = 0, filename = null) {
 	const trueLength = Math.max(samplerate * lengthValue, samplerate);
+	EE.emit('len', trueLength);
 	let getvalues =
 		mode >= 2 ? _ => Math.max(-1, Math.min(1, _)) * 127.5 + 128 :
 			mode == 1 ? _ => (_ + 127) & 255 :
@@ -121,18 +124,35 @@ export function renderCode(samplerate, mode, codeString, lengthValue = 10, stere
 	const timeout = minute * 5;
 	params.push('int', 'window');
 	values.push(Math.floor, globalThis);
-	if(useChasyxxPlayerAdditions) {
-		for( let i in chasyxxPlayerAdditions ) {
+	if (useChasyxxPlayerAdditions) {
+		for (let i in chasyxxPlayerAdditions) {
 			params.push(Function.name(chasyxxPlayerAdditions[i]));
 			values.push(chasyxxPlayerAdditions[i]);
 		}
 	}
 	let i;
+	if (printStats) {
+		if (printStats >= 2) {
+			EE.emit('compile', codeString.length);
+		} else {
+			console.log(`Compiling a ${codeString.length} code...`);
+			console.time('Compilation');
+		}
+	}
 	try {
 		try {
 			if (mode == 3) {
 				const out = new Function(...params, codeString).bind(globalThis, ...values);
+				if (printStats) {
+					if (printStats >= 2) {
+						EE.emit('compileFuncbeat');
+					} else {
+						console.log(`Funcbeat sub-compilation...`);
+						console.time('Funcbeat');
+					}
+				}
 				codeFunc = out();
+				if (printStats==1) console.timeEnd('Funcbeat');
 				try {
 					if (codeFunc === undefined || codeFunc === null || typeof codeFunc !== 'function') throw { message: "Primary output was not a function" };
 				} catch (e) {
@@ -140,6 +160,15 @@ export function renderCode(samplerate, mode, codeString, lengthValue = 10, stere
 				}
 			} else {
 				codeFunc = new Function(...params, `t`, `return 0,\n${codeString || 0};`).bind(globalThis, ...values);
+			}
+			if (printStats) {
+				if (printStats >= 2) {
+					EE.emit('prep');
+					EE.emit('index', 0);
+				} else {
+					console.timeEnd('Compilation');
+					console.log(`${progressBar(0, 1)} 0 / ${trueLength}`);
+				}
 			}
 			const out = codeFunc(0, samplerate);
 			if (stereo == null) {
@@ -168,6 +197,13 @@ export function renderCode(samplerate, mode, codeString, lengthValue = 10, stere
 					truncated = true;
 					break;
 				}
+				if (printStats && (i & 1023) == 0) {
+					if (printStats >= 2) {
+						EE.emit('index', i);
+					} else {
+						console.log(`\x1b[1A${progressBar(i, trueLength, 40)} ${i} / ${trueLength}`);
+					}
+				}
 			};
 			let result = [NaN, NaN];
 			try {
@@ -180,8 +216,8 @@ export function renderCode(samplerate, mode, codeString, lengthValue = 10, stere
 				//}
 			}
 			// try {
-				if(!isNaN((result ?? [NaN, null])[0])) lastValue[0] = getvalues((result ?? [i & 1 && 255, null])[0]) & 255;
-				if(!isNaN((result ?? [NaN, null])[1])) lastValue[1] = getvalues((result ?? [null, i & 2 && 255])[1]) & 255;
+			if (!isNaN((result ?? [NaN, null])[0])) lastValue[0] = getvalues((result ?? [i & 1 && 255, null])[0]) & 255;
+			if (!isNaN((result ?? [NaN, null])[1])) lastValue[1] = getvalues((result ?? [null, i & 2 && 255])[1]) & 255;
 			// }catch(e){if(e instanceof TypeError){
 			// 	return "Error reading stereo array: got undefined"
 			// }}
@@ -196,6 +232,13 @@ export function renderCode(samplerate, mode, codeString, lengthValue = 10, stere
 					truncated = true;
 					break;
 				}
+				if (printStats && (i & 1023) == 0) {
+					if (printStats >= 2) {
+						EE.emit('index', i);
+					} else {
+						console.log(`\x1b[1A${progressBar(i, trueLength, 40)} ${i} / ${trueLength}`);
+					}
+				}
 			};
 			let result = NaN;
 			try {
@@ -208,7 +251,7 @@ export function renderCode(samplerate, mode, codeString, lengthValue = 10, stere
 				//}
 			}
 			// try {
-				if(!isNaN(result)) lastValue = getvalues(result) & 255;
+			if (!isNaN(result)) lastValue = getvalues(result) & 255;
 			// }catch(e){if(e instanceof TypeError){
 			// 	return "Error reading stereo array: got undefined"
 			// }}
@@ -221,25 +264,33 @@ export function renderCode(samplerate, mode, codeString, lengthValue = 10, stere
 	if (zeroIndex > samplerate) buffer = buffer.subarray(0, zeroIndex);
 	else buffer = buffer.subarray(0, samplerate)
 	const header = Buffer.concat([
-		Buffer.from('RIFF', 'ascii'),										// Rescource Interchange File Format
-		int32to4char(buffer.length + 36),									// filesize - 8
-		Buffer.from('WAVEfmt ', 'ascii'),									// .wav file, begin formatting info
-		int32to4char(16),													// length of formatting info
-		int16to2char(1),													// Marker for PCM data
-		int16to2char(1 + stereo),											// Channel No.
-		int32to4char(samplerate),											// Sample rate
-		int32to4char(samplerate * (stereo ? 2 : 1) * (bitsPerSample / 8)),	// Byte rate: (Sample rate * Number of channels * Bits per sample) / 8
-		int16to2char((bitsPerSample * (stereo ? 2 : 1)) / 8),				// Bytes per sample: (Bits per sample * Number of channels) / 8	
-		int16to2char(bitsPerSample),										// bits per sample
-		Buffer.from('data', 'ascii'),										// Begin data block
-		int32to4char(buffer.length),										// How long is this block?
+		Buffer.from('RIFF', 'ascii'),									// Rescource Interchange File Format
+		write32(buffer.length + 36),									// filesize - 8
+		Buffer.from('WAVEfmt ', 'ascii'),								// .wav file, begin formatting info
+		write32(16),													// length of formatting info
+		write16(1),														// Marker for PCM data
+		write16(1 + stereo),											// Channel No.
+		write32(samplerate),											// Sample rate
+		write32(samplerate * (stereo ? 2 : 1) * (bitsPerSample / 8)),	// Byte rate: (Sample rate * Number of channels * Bits per sample) / 8
+		write16((bitsPerSample * (stereo ? 2 : 1)) / 8),				// Bytes per sample: (Bits per sample * Number of channels) / 8	
+		write16(bitsPerSample),											// bits per sample
+		Buffer.from('data', 'ascii'),									// Begin data block
+		write32(buffer.length),											// How long is this block?
 	]);
-
-	console.log(header)
 
 	const final = Buffer.concat([header, buffer]);
 
-	const outputFile = "output" + String(Date.now()) + ".wav";
+	const outputFile = filename ?? ("output" + String(Date.now()) + ".wav");
+
+	if (printStats) {
+		if (printStats >= 2) {
+			EE.emit('done', header.toString('hex').replace(/(..)/g, '$1 '), outputFile, formatFileSize(final.length));
+		} else {
+			console.log(`\x1b[1A${progressBar(1, 1, 40)} ${trueLength} / ${trueLength}`);
+			console.log(`HEADER ${header.toString('hex').replace(/(..)/g, '$1 ')}`);
+			console.log(`FILE ${outputFile} SIZE ${formatFileSize(final.length)}`);
+		}
+	}
 
 	fs.writeFileSync(outputFile, final);
 	return { error: null, file: outputFile, truncated };

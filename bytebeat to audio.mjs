@@ -116,7 +116,7 @@ export function renderCode(samplerate, mode, codeString, lengthValue = 10, stere
 		mode >= 2 ? _ => Math.max(-1, Math.min(1, _)) * 127.5 + 128 :
 			mode == 1 ? _ => (_ + 127) & 255 :
 				_ => _ & 255;
-	let codeFunc = null;
+	let codeFunc = () => { return 0; };
 	let truncated = false;
 	const params = Object.getOwnPropertyNames(Math);
 	const values = params.map(k => Math[k]);
@@ -140,36 +140,36 @@ export function renderCode(samplerate, mode, codeString, lengthValue = 10, stere
 		}
 	}
 	try {
-		try {
-			if (mode == 3) {
-				const out = new Function(...params, codeString).bind(globalThis, ...values);
-				if (printStats) {
-					if (printStats >= 2) {
-						EE.emit('compileFuncbeat');
-					} else {
-						console.log(`Funcbeat sub-compilation...`);
-						console.time('Funcbeat');
-					}
-				}
-				codeFunc = out();
-				if (printStats==1) console.timeEnd('Funcbeat');
-				try {
-					if (codeFunc === undefined || codeFunc === null || typeof codeFunc !== 'function') throw { message: "Primary output was not a function" };
-				} catch (e) {
-					return { error: "Funcbeat error: " + e.message, file: null, truncated: null };
-				}
-			} else {
-				codeFunc = new Function(...params, `t`, `return 0,\n${codeString || 0};`).bind(globalThis, ...values);
-			}
+		if (mode == 3) {
+			const out = new Function(...params, codeString).bind(globalThis, ...values);
 			if (printStats) {
 				if (printStats >= 2) {
-					EE.emit('prep');
-					EE.emit('index', 0);
+					EE.emit('compileFuncbeat');
 				} else {
-					console.timeEnd('Compilation');
-					console.log(`${progressBar(0, 1)} 0 / ${trueLength}`);
+					console.log(`Funcbeat sub-compilation...`);
+					console.time('Funcbeat');
 				}
 			}
+			codeFunc = out();
+			if (printStats == 1) console.timeEnd('Funcbeat');
+			try {
+				if (codeFunc === undefined || codeFunc === null || typeof codeFunc !== 'function') throw { message: "Primary output was not a function" };
+			} catch (e) {
+				return { error: "Funcbeat error: " + e.message, file: null, truncated: null };
+			}
+		} else {
+			codeFunc = new Function(...params, `t`, `return 0,\n${codeString || 0};`).bind(globalThis, ...values);
+		}
+		if (printStats) {
+			if (printStats >= 2) {
+				EE.emit('prep');
+				EE.emit('index', 0);
+			} else {
+				console.timeEnd('Compilation');
+				console.log(`${progressBar(0, 1)} 0 / ${trueLength}`);
+			}
+		}
+		try {
 			const out = codeFunc(0, samplerate);
 			if (stereo == null) {
 				try {

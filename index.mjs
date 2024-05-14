@@ -17,10 +17,11 @@
 //     Email contact is at creset200@gmail.com
 
 import { readdir } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, Collection, Events, GatewayIntentBits } from 'discord.js';
-import config from './config.json' assert { type: 'json' };
+let config = JSON.parse(readFileSync('config.json'));
 import { renderCodeWrapperInteraction, renderCodeWrapperMessage } from './generateRender.js';
 
 const djsClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });

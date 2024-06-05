@@ -1,10 +1,10 @@
 /** @type {import('discord.js').RESTPostAPIApplicationCommandsJSONBody} */
 export const data = {
-	name: 'ping',
-	description: 'Replies with Pong!',
+	name: 'marco',
+	description: 'Replies with polo!',
 };
 
 /** @param {import('discord.js').CommandInteraction} interaction */
 export async function execute(interaction) {
-	await interaction.reply('Pong!');
+	await interaction.reply('Polo!');
 }

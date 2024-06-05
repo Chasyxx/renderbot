@@ -20,7 +20,8 @@ import { REST, Routes } from 'discord.js';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import config from './config.json' assert { type: 'json' };
+import { readFileSync } from 'node:fs'
+const config = JSON.parse(readFileSync('./config.json'));
 
 const { clientId, token } = config;
 

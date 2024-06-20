@@ -3,5 +3,8 @@
     "discord.js": "^14.13.0",
     "pako": "^2.1.0"
   },
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "@types/pako": "^2.0.3"
+  }
 }

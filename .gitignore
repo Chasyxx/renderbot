@@ -1,4 +1,5 @@
 node_modules/
 config.json
+target/*
 index.mjs.old
 package-lock.json

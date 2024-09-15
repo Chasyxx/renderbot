@@ -289,14 +289,14 @@ export function renderCode(
                     let channels: number = 0;
                     if (!isNaN(out[0] ?? NaN)) {
                         lastValue[0] = getValues(out[0]) & 255;
-                        channels += 1;
+                        channels |= 1;
                     }
                     if (!isNaN(out[1] ?? NaN)) {
                         lastValue[1] = getValues(out[1]) & 255;
-                        channels += 2;
+                        channels |= 2;
                     }
                     if (channels == 3) {
-                        buffer[sampleIndex] = lastValue[0] / 2 + lastValue[1] / 2;
+                        buffer[sampleIndex] = lastValue[0] / 2 + lastValue[1] / 2 & 255;
                     } else if (channels == 2) {
                         buffer[sampleIndex] = lastValue[1];
                     } else {

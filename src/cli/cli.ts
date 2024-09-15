@@ -1,13 +1,11 @@
 import { renderCode, Modes } from "../bytebeatToAudio.js";
 import { readFile } from "node:fs/promises";
 
-let codeString: string = "t&t>>8";
 let sampleRate: number = 8000;
 let mode: Modes = Modes.Bytebeat;
 let stereo: boolean | null = null;
 let seconds: number = 15;
 let usagePrinted: boolean = false;
-// let fail: boolean = false;
 
 function printUsage(f: (text: string) => void = console.warn) {
     if(usagePrinted) return;

@@ -21,7 +21,7 @@ import { readFileSync, unlinkSync } from 'fs';
 import { AttachmentBuilder, DiscordAPIError } from 'discord.js';
 import { CommandInteraction, ButtonInteraction, AnySelectMenuInteraction, ModalSubmitInteraction, InteractionResponse, Message } from 'discord.js';
 import { Worker } from 'worker_threads';
-import { progressBar } from './bytebeatToAudio.js';
+import { progressBar, Modes as bytebeatModes } from './bytebeatToAudio.js';
 
 function _btoa($: string): string {
     return Buffer.from($, 'binary').toString('base64');
@@ -89,7 +89,7 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
     if (duration * songData.sampleRate > 2_880_000) return await interaction.reply({ content: `\`\`\`Duration may not be greater than 2,880,000 samples.\n(${songData.sampleRate}Hz * ${duration}s = ${songData.sampleRate * duration} samples.)\nThe longest you can render is ${Math.floor(2_880_000 / songData.sampleRate)} seconds.\`\`\``, ephemeral: true });
     if (!button) { await interaction.deferReply() }
     else msg = await interaction.reply({ content: 'Rendering started!' });
-    const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? 3 : songData.mode == "Floatbeat" ? 2 : songData.mode == "Signed Bytebeat" ? 1 : 0, D: duration, code: songData.code } });
+    const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat : songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat : songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat : bytebeatModes.Bytebeat, D: duration, code: songData.code } });
     prep(worker, async (data) => {
         const { error, file, truncated } = data.finished;
         if (error == null) {
@@ -153,7 +153,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                 throw e;
             }
         }
-        const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? 3 : songData.mode == "Floatbeat" ? 2 : songData.mode == "Signed Bytebeat" ? 1 : 0, D: Math.min(2_880_000 / songData.sampleRate, 30), code: songData.code } });
+        const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat : songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat : songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat : bytebeatModes.Bytebeat, D: Math.min(2_880_000 / songData.sampleRate, 30), code: songData.code } });
         worker.on('messageerror', (e) => {
             console.error(e);
         });

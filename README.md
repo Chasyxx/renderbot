@@ -16,6 +16,4 @@ Rename `config.json.template` to `config.json` and edit it:
 2. Replce `YOUR_CLIENT_ID_HERE` with your bot's client ID.
 3. Sync commands to Discord: `pushd target && node target/deployCommands.mjs && popd`
 
-# Execution
-1. Make sure you're in the target: `cd target`
-2. Run the main file: `node main.mjs`
+Executing the bot should be as easy as `npm start`.

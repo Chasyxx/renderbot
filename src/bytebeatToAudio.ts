@@ -145,6 +145,13 @@ export function getFunctions(useChasyxxPlayerAdditions: boolean): ({ params: str
     return { params, values };
 }
 
+export enum Modes {
+    Bytebeat = 0,
+    SignedBytebeat = 1,
+    Floatbeat = 2,
+    Funcbeat = 3
+};
+
 /**
  * Render a bytebeat code into a .wav file.
  * @param samplerate Samplerate to use.
@@ -160,7 +167,7 @@ export function getFunctions(useChasyxxPlayerAdditions: boolean): ({ params: str
  * If error is null, file is the filename of the output and truncated is a boolean stating if the output was truncated due to taking too long to render.
  */
 export function renderCode(
-    samplerate: number, mode: 0 | 1 | 2 | 3, codeString: string,
+    samplerate: number, mode: Modes, codeString: string,
     lengthValue: number = 10, stereo: boolean | null,
     useChasyxxPlayerAdditions: boolean, printStats: 0 | 1 | 2,
     filename: string | null = null): 
@@ -174,9 +181,10 @@ export function renderCode(
     if (printStats == 2) EE.emit('len', sampleCount);
     let getValues: Function;
     switch (mode) {
-        case 0: getValues = (x: number) => (x & 255); break;
-        case 1: getValues = (x: number) => (x + 127 & 255); break;
-        default: getValues = (x: number) => Math.max(-1, Math.min(1, x)) * 127.5 + 128 & 255; break;
+        case Modes.Bytebeat: default: getValues = (x: number) => (x & 255); break;
+        case Modes.SignedBytebeat: getValues = (x: number) => (x + 127 & 255); break;
+        case Modes.Floatbeat:
+        case Modes.Funcbeat: getValues = (x: number) => Math.max(-1, Math.min(1, x)) * 127.5 + 128 & 255; break;
     }
     let codeFunc: ((t: number, SR: number) => number[] | number) = () => { return 0; };
     let truncated = false;
@@ -190,7 +198,7 @@ export function renderCode(
         console.time('Compilation');
     }
     try {
-        if (mode == 3) {
+        if (mode == Modes.Funcbeat) {
             const out = new Function(...params, codeString).bind(globalThis, ...values);
             if (printStats == 2) {
                 // @ts-expect-error - D.JS shenannigains
@@ -262,11 +270,11 @@ export function renderCode(
             }
         };
         try {
-            const out = codeFunc(mode == 3 ? sampleIndex / samplerate : sampleIndex, samplerate);
+            const out = codeFunc(mode == Modes.Funcbeat ? sampleIndex / samplerate : sampleIndex, samplerate);
             if (stereo) {
                 if (Array.isArray(out)) {
-                    if (!isNaN(out[0])) lastValue[0] = getValues(out[0]) & 255;
-                    if (!isNaN(out[1])) lastValue[1] = getValues(out[1]) & 255;
+                    if (!isNaN(out[0] ?? NaN)) lastValue[0] = getValues(out[0]) & 255;
+                    if (!isNaN(out[1] ?? NaN)) lastValue[1] = getValues(out[1]) & 255;
                     buffer[sampleIndex * 2] = lastValue[0];
                     buffer[sampleIndex * 2 + 1] = lastValue[1];
                 } else {
@@ -278,11 +286,11 @@ export function renderCode(
                 if (Array.isArray(out)) {
                     // Downmix to mono 
                     let channels: number = 0;
-                    if (!isNaN(out[0])) {
+                    if (!isNaN(out[0] ?? NaN)) {
                         lastValue[0] = getValues(out[0]) & 255;
                         channels += 1;
                     }
-                    if (!isNaN(out[1])) {
+                    if (!isNaN(out[1] ?? NaN)) {
                         lastValue[1] = getValues(out[1]) & 255;
                         channels += 2;
                     }

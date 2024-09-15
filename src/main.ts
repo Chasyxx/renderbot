@@ -28,7 +28,7 @@ const djsClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntent
 
 const djsCommands: Collection<string, {data: { name: string, description: string }, execute: Function}> = new Collection();
 
-const bytebeatPlayLinkDetectionRegexp = /https:\/\/dollchan\.net\/bytebeat\/?(\/index\.html)?#v3b64[^\)]+?(?=$|\)| )/;
+const bytebeatPlayLinkDetectionRegexp = /https:\/\/dollchan\.net\/bytebeat\/?(\/index\.html)?#v3b64[^\)\r\n]+?(?=$|\)| )/;
 
 function addCommandsfromFilesWrapper(commandsPath: string) {
     return (commandFiles: string[]) => {
@@ -75,12 +75,16 @@ djsClient.on(Events.InteractionCreate, async (interaction) => {
         try {
             await command.execute(interaction);
         } catch (error) {
-            console.error(error);
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
-            } else {
-                await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
-            }
+	    try {
+                console.error(error);
+                if (interaction.replied || interaction.deferred) {
+                    await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+                } else {
+                    await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+                }
+	    } catch(error) {
+		    console.error(error, "Even worse!!");
+	    }
         }
     } else if ('customId' in interaction && interaction.customId == 'full') {
         const link = interaction.message!.content.match(bytebeatPlayLinkDetectionRegexp)![0];

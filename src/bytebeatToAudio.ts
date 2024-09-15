@@ -127,87 +127,13 @@ export function getFunctions(useChasyxxPlayerAdditions: boolean): ({ params: str
     let params: string[] = [];
     let values: any[] = [];
 
-    // TS doesn't like subscripting Math, so these have to be manually defined afaik
-    // If there's a way to do this automatically without eval() please tell me
-    // params.push('abs');
-    // values.push(Math.abs);
-    // params.push('acos');
-    // values.push(Math.acos);
-    // params.push('asin');
-    // values.push(Math.asin);
-    // params.push('atan');
-    // values.push(Math.atan);
-
-    // params.push('atan2');
-    // values.push(Math.atan2);
-    // params.push('ceil');
-    // values.push(Math.ceil);
-    // params.push('clz32');
-    // values.push(Math.clz32);
-    // params.push('cos');
-    // values.push(Math.cos);
-
-    // params.push('exp');
-    // values.push(Math.exp);
-    // params.push('floor');
-    // values.push(Math.floor);
-    // params.push('imul');
-    // values.push(Math.imul);
-    // params.push('fround');
-    // values.push(Math.fround);
-
-    // params.push('log');
-    // values.push(Math.log);
-    // params.push('max');
-    // values.push(Math.max);
-    // params.push('min');
-    // values.push(Math.min);
-    // params.push('pow');
-    // values.push(Math.pow);
-
-    // params.push('random');
-    // values.push(Math.random);
-    // params.push('round');
-    // values.push(Math.round);
-    // params.push('sin');
-    // values.push(Math.sin);
-    // params.push('sqrt');
-    // values.push(Math.sqrt);
-
-    // params.push('tan');
-    // values.push(Math.tan);
-    // params.push('log10');
-    // values.push(Math.log10);
-    // params.push('log2');
-    // values.push(Math.log2);
-    // params.push('log1p');
-    // values.push(Math.log1p);
-
-    // params.push('expm1');
-    // values.push(Math.expm1);
-    // params.push('cosh');
-    // values.push(Math.cosh);
-    // params.push('sinh');
-    // values.push(Math.sinh);
-    // params.push('tanh');
-    // values.push(Math.tanh);
-
-    // params.push('acosh');
-    // values.push(Math.acosh);
-    // params.push('asinh');
-    // values.push(Math.asinh);
-    // params.push('atanh');
-    // values.push(Math.atanh);
-    // params.push('hypot');
-    // values.push(Math.hypot);
-
     params = Object.getOwnPropertyNames(Math);
     //@ts-expect-error - These subscripts work but TS doesn't like them that much.
     values = params.map(k=>Math[k]);
 
     if (useChasyxxPlayerAdditions) {
         let newParams = params = Object.getOwnPropertyNames(chasyxxPlayerAdditions);
-        //@ts-expect-error
+        //@ts-expect-error - Same as above
         let newValues = newParams.map(k=>Math[k]);
         params.push(...newParams);
         values.push(...newValues);
@@ -243,6 +169,8 @@ export function renderCode(
     | { error: string, file: null, truncated: null }) {
 
     const sampleCount = Math.max(samplerate * lengthValue, samplerate);
+    // @ts-expect-error - Tnank you Discord.JS for redefining EventEmitter and
+    // breaking TypeScript!
     if (printStats == 2) EE.emit('len', sampleCount);
     let getValues: Function;
     switch (mode) {
@@ -255,6 +183,7 @@ export function renderCode(
     let { params, values } = getFunctions(useChasyxxPlayerAdditions);
     let sampleIndex = 0;
     if (printStats == 2) {
+        // @ts-expect-error - D.JS shenannigains
         EE.emit('compile', codeString.length);
     } else if (printStats == 1) {
         console.log(`Compiling a code of length ${codeString.length}`);
@@ -264,6 +193,7 @@ export function renderCode(
         if (mode == 3) {
             const out = new Function(...params, codeString).bind(globalThis, ...values);
             if (printStats == 2) {
+                // @ts-expect-error - D.JS shenannigains
                 EE.emit('compileFuncbeat');
             } else if (printStats == 1) {
                 console.log(`Funcbeat sub-compilation...`);
@@ -281,7 +211,9 @@ export function renderCode(
             codeFunc = new Function(...params, `t`, `return 0,\n${codeString || 0};`).bind(globalThis, ...values);
         }
         if (printStats == 2) {
+            // @ts-expect-error - D.JS shenannigains
             EE.emit('prep');
+            // @ts-expect-error - D.JS shenannigains
             EE.emit('index', 0);
         } else if (printStats == 1) {
             console.timeEnd('Compilation');
@@ -322,6 +254,7 @@ export function renderCode(
             if (time > (tick + 100)) {
                 tick = time;
                 if (printStats == 2) {
+                    // @ts-expect-error - D.JS shenannigains
                     EE.emit('index', sampleIndex);
                 } else if (printStats == 1) {
                     console.log(`\x1b[1A${progressBar(sampleIndex, sampleCount, 40)} ${sampleIndex} / ${sampleCount}`);
@@ -391,16 +324,14 @@ export function renderCode(
 
     function getHeaderString(header: Buffer): string {
         return header.toString('hex')
-        .replace(/(..)/g, '$1')
-        .replace(
-            /(........)(....)(...)(...)(............)/g,
-            (_m: string, c8: string, c4: string, four: string, ab89: string, c12: string) => {
-            function ns(s: string) { return s.replace(/\s/g, '') };
-            return `${ns(c8)}-${ns(c4)}-4${ns(four)}-${'89ab'[c8.charCodeAt(0) + c12.charCodeAt(0) & 3]}${ns(ab89)}-${ns(c12)} `;
-        });
+        .replace(/(\w\w)/g, '$1-')
+        .replace(/(\w\w-\w\w-\w\w-\w\w-)/g, '$1!')
+        .replace(/[-!]/g, ' ')
     }
     if (printStats == 2) {
+        // @ts-expect-error - D.JS shenannigains
         EE.emit('index', sampleCount);
+        // @ts-expect-error - D.JS shenannigains
         EE.emit('done', getHeaderString(header), outputFile, formatByteCount(final.length));
     } else if (printStats == 1) {
         console.log(`\x1b[1A${progressBar(1, 1, 40)} ${sampleIndex} / ${sampleIndex}`);

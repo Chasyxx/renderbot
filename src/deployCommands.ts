@@ -21,32 +21,41 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs'
-const config = JSON.parse(readFileSync('./config.json', 'utf-8'));
+const config = JSON.parse(readFileSync('../config.json', 'utf-8'));
 
 const { clientId, token } = config;
 
 const commands: ({ name: string, description: string })[] = [];
 const foldersPath = fileURLToPath(new URL('commands', import.meta.url));
-readdir(foldersPath).then(commandFolders => {
-    for (const folder of commandFolders) {
+console.log("Finding command folders...");
+
+readdir(foldersPath).then(async commandFolders => {
+    for (let i = 0; i < commandFolders.length; i++) {
+        const folder = commandFolders[i];
+        console.log(`${(i==commandFolders.length-1?"`-":"|-")} ${folder}`);
         const commandsPath = join(foldersPath, folder);
-        readdir(commandsPath).then((files) => files.filter((file) => file.endsWith('.js'))).then(commandFiles => {
-            for (const file of commandFiles) {
-                const filePath = join(commandsPath, file);
-                import(filePath).then(command => {
-                    if ('data' in command && 'execute' in command) {
-                        commands.push(command.data);
-                    } else {
-                        console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
-                    }
-                });
+        const commandFiles = await readdir(commandsPath);
+        for (let j = 0; j < commandFiles.length; j++) {
+            const file = commandFiles[j];
+            if (!file.endsWith('.js') && !file.endsWith('.mjs') && !file.endsWith('.cjs')) {
+                continue;
             }
-        });
+            console.log(`${(i==commandFolders.length-1?" ":"|")}  ${(j==commandFiles.length-1?"`-":"|-")} ${file}`);
+            const filePath = join(commandsPath, file);
+            const command = await import(filePath);
+            if ('data' in command && 'execute' in command) {
+                commands.push(command.data);
+                console.log(`${(i==commandFolders.length-1?" ":"|")}  ${(j==commandFiles.length-1?" ":"|")}  \`- (done)`)
+            } else {
+                console.log(`${(i==commandFolders.length-1?" ":"|")}  ${(j==commandFiles.length-1?" ":"|")}  \`- (missing properties!)`)
+            }
+        }
     }
+}).then(() => {
     const rest = new REST().setToken(token);
     try {
         console.log(`Started refreshing ${commands.length} application (/) commands.`);
-        rest.put(Routes.applicationCommands(clientId), { body: commands }).then(data=>{
+        rest.put(Routes.applicationCommands(clientId), { body: commands }).then(data => {
             //@ts-expect-error
             console.log(`Successfully reloaded ${data.length} application (/) commands.`);
         });

@@ -18,8 +18,7 @@
 
 import { renderCodeWrapperInteraction } from '../../generateRender.js';
 
-/** @type {import('discord.js').RESTPostAPIApplicationCommandsJSONBody} */
-export const data = {
+export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody = {
     name: 'render',
     description: 'Render a bytebeat expression',
     options: [

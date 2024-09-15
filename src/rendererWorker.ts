@@ -16,50 +16,68 @@
 
 //     Email contact is at creset200@gmail.com
 
-import { renderCode, EE } from './bytebeatToAudio.js';
-import { workerData, isMainThread, parentPort } from 'node:worker_threads';
+// All @ts-expect-error lines below unless said otherwise are due to discord.js
+// redefining the EventEmmiter class and causing several issues with type
+// checking. Amazing.
+
+import { renderCode, EE } from "./bytebeatToAudio.js";
+import { workerData, isMainThread, parentPort } from "node:worker_threads";
 
 if (isMainThread) {
-    console.error("Worker file shouldn't be run directly!");
-    process.exit(1);
+  console.error("Worker file shouldn't be run directly!");
+  process.exit(1);
 }
 
 let maxLength = 4096;
 
-EE.on('len', m => {
-    maxLength = m;
+// @ts-expect-error - Read the above comment
+EE.on("len", (m: number) => {
+  maxLength = m;
 });
 
-EE.on('compile', len => {
-    parentPort!.postMessage({ status: "compile", len });
+// @ts-expect-error
+EE.on("compile", (len: number) => {
+  parentPort!.postMessage({ status: "compile", len });
 });
 
-EE.on('compileFuncbeat', () => {
-    parentPort!.postMessage({ status: "funcbeat" });
+// @ts-expect-error
+EE.on("compileFuncbeat", () => {
+  parentPort!.postMessage({ status: "funcbeat" });
 });
 
-EE.on('index', idx => {
-    parentPort!.postMessage({ index: idx, max: maxLength });
+// @ts-expect-error
+EE.on("index", (idx: number) => {
+  parentPort!.postMessage({ index: idx, max: maxLength });
 });
 
-EE.on('done', (h, f, s) => {
-    parentPort!.postMessage({ status: 'done', h, f, s });
+// @ts-expect-error
+EE.on("done", (h: number, f: number, s: number) => {
+  parentPort!.postMessage({ status: "done", h, f, s });
 });
 
-EE.on('prep', () => {
-    parentPort!.postMessage({ status: 'prep' });
+// @ts-expect-error
+EE.on("prep", () => {
+  parentPort!.postMessage({ status: "prep" });
 });
 
 let x;
 try {
-    x = renderCode(workerData.SR, workerData.M, workerData.code, workerData.D, null, false, 2, null);
+  x = renderCode(
+    workerData.SR,
+    workerData.M,
+    workerData.code,
+    workerData.D,
+    null,
+    false,
+    2,
+    null,
+  );
 } catch (e) {
-    if(e instanceof Error)
-    x = { error: e.message ?? e, file: null };
-    else x = { error: e, file: null };
+  if (e instanceof Error) x = { error: e.message ?? e, file: null };
+  else x = { error: e, file: null };
 }
 
-parentPort!.postMessage({ finished: x })
+parentPort!.postMessage({ finished: x });
 
 // if(x!==null) {
 

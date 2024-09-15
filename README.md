@@ -8,12 +8,14 @@ Renderbot is as said above. The main purposes are:
 # Setup
 1. Clone the repo: `git clone https://github.com/Chasyxx/renderbot.git`, and change into the new directory: `cd renderbot`
 2. Install nessacary NPM packages: `npm i`
+3. Compile to JS: `./node_modules/typescript/bin/tsc`
 
 ## Configuration
 Rename `config.json.template` to `config.json` and edit it:
 1. Replace `YOUR_BOT_TOEN_HERE` with your Discord bot's token.
 2. Replce `YOUR_CLIENT_ID_HERE` with your bot's client ID.
-3. Sync commands to Discord: `node deploy-commands.mjs`
+3. Sync commands to Discord: `pushd target && node target/deployCommands.mjs && popd`
 
 # Execution
-Run the main file: `node index.mjs`
+1. Make sure you're in the target: `cd target`
+2. Run the main file: `node main.mjs`

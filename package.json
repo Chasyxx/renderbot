@@ -5,7 +5,9 @@
     "typescript": "^5.6.2"
   },
   "scripts": {
-    "start": "cd target && node main.js"
+    "tsc": "./node_modules/typescript/bin/tsc",
+    "bot": "cd target && node main.js",
+    "cli": "cd target/cli && node cli.js"
   },
   "type": "module",
   "devDependencies": {

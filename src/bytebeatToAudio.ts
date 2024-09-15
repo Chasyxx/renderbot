@@ -86,32 +86,32 @@ export function visualizer(array: number[], width: number = 64, height: number =
 }
 
 function formatByteCount(bytes: number) {
-    let power1024, power1000;
+    let power1000, power1024;
     if (bytes < 1e3) {
-        power1024 = bytes + "b"
+        power1000 = bytes + " B"
     } else if (bytes < 1e6) {
-        const kib = String(bytes / 1e3).replace(/(?<=.\d\d)\d+$/, '')
-        power1024 = kib + " KiB"
-    } else if (bytes < 1e9) {
-        const mib = String(bytes / 1e6).replace(/(?<=.\d\d)\d+$/, '')
-        power1024 = mib + " MiB"
-    } else if (bytes < 1e12) {
-        const gib = String(bytes / 1e9).replace(/(?<=.\d\d)\d+$/, '')
-        power1024 = gib + " GiB"
-    }
-    if (bytes < 1024) {
-        power1000 = bytes + "b"
-    } else if (bytes < (1024 ** 2)) {
-        const kb = String(bytes / 1024).replace(/(?<=.\d\d)\d+$/, '')
+        const kb = String(bytes / 1e3).replace(/(?<=.\d\d)\d+$/, '')
         power1000 = kb + " KB"
-    } else if (bytes < (1024 ** 3)) {
-        const mb = String(bytes / (1024 ** 2)).replace(/(?<=.\d\d)\d+$/, '')
+    } else if (bytes < 1e9) {
+        const mb = String(bytes / 1e6).replace(/(?<=.\d\d)\d+$/, '')
         power1000 = mb + " MB"
-    } else if (bytes < (1024 ** 4)) {
-        const gb = String(bytes / (1024 ** 3)).replace(/(?<=.\d\d)\d+$/, '')
+    } else /*if (bytes < 1e12)*/ {
+        const gb = String(bytes / 1e9).replace(/(?<=.\d\d)\d+$/, '')
         power1000 = gb + " GB"
     }
-    return power1000 + " / " + power1024;
+    if (bytes < 1024) {
+        power1024 = bytes + " B"
+    } else if (bytes < (1024 ** 2)) {
+        const kib = String(bytes / 1024).replace(/(?<=.\d\d)\d+$/, '')
+        power1024 = kib + " KiB"
+    } else if (bytes < (1024 ** 3)) {
+        const mib = String(bytes / (1024 ** 2)).replace(/(?<=.\d\d)\d+$/, '')
+        power1024 = mib + " MiB"
+    } else /*if (bytes < (1024 ** 4))*/ {
+        const gib = String(bytes / (1024 ** 3)).replace(/(?<=.\d\d)\d+$/, '')
+        power1024 = gib + " GiB"
+    }
+    return power1024 + " / " + power1000;
 }
 
 export const EE = new EventEmitter();
@@ -162,6 +162,7 @@ export enum Modes {
  * @param useChasyxxPlayerAdditions Whether the exotic functions should be added.
  * @param printStats Whether stats should be printed. 0: No. 1: Yes. 2: Send events on EE.
  * @param filename A filename to use. Use `null` for render(Unix timestamp).
+ * @param truncate Whether the function can truncate the output if rendering takes longet than 5 minutes.
  * 
  * @returns An object, where if error is a string, it shows what went wrong, and file and truncated are null.
  * If error is null, file is the filename of the output and truncated is a boolean stating if the output was truncated due to taking too long to render.
@@ -170,7 +171,7 @@ export function renderCode(
     samplerate: number, mode: Modes, codeString: string,
     lengthValue: number = 10, stereo: boolean | null,
     useChasyxxPlayerAdditions: boolean, printStats: 0 | 1 | 2,
-    filename: string | null = null): 
+    filename: string | null = null, truncate: boolean = true): 
 
     ({ error: null, file: string, truncated: boolean }
     | { error: string, file: null, truncated: null }) {
@@ -255,7 +256,7 @@ export function renderCode(
     for (sampleIndex = 0; sampleIndex <= sampleCount; sampleIndex++) {
         if ((sampleIndex & 255) == 0) {
             const time = Date.now();
-            if ((time - startTime) > (60 * 5 * 1000)) {
+            if (truncate && (time - startTime) > (60 * 5 * 1000)) {
                 truncated = true;
                 break;
             }

@@ -202,7 +202,7 @@ export function renderCode(
             codeFunc = out();
             if (printStats == 1) console.timeEnd('Funcbeat');
             try {
-                if (codeFunc === undefined || codeFunc === null || typeof codeFunc !== 'function') throw { message: "Primary output was not a function" };
+                if (codeFunc === undefined || codeFunc === null || typeof codeFunc !== 'function') throw new TypeError("Funcbeat output was not a function");
             } catch (e) {
                 if (e instanceof Error) return { error: "Funcbeat error: " + e.message, file: null, truncated: null };
                 else return { error: "Funcbeat error: " + String(e), file: null, truncated: null };

@@ -21,7 +21,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, Collection, Events, GatewayIntentBits } from 'discord.js';
-const config = JSON.parse(readFileSync('../config.json', 'ascii'));
+type configType = {
+    token: string;
+    clientId: string;
+    guildId: string;
+    disabledChannels: string[];
+};
+const config: configType = JSON.parse(readFileSync('../config.json', 'ascii'));
 import { renderCodeWrapperInteraction, renderCodeWrapperMessage } from './generateRender.js';
 
 const djsClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
@@ -55,6 +61,7 @@ readdir(djsCommandsPath).then(djsCommandFolders => {
 
 djsClient.on(Events.MessageCreate, async ($) => {
     if ($.author.bot) return;
+    if (config.disabledChannels.includes($.channelId)) return;
     if (bytebeatPlayLinkDetectionRegexp.test($.content)) {
         const link = $.content.match(bytebeatPlayLinkDetectionRegexp)![0];
         renderCodeWrapperMessage($, link.trim());
@@ -63,7 +70,10 @@ djsClient.on(Events.MessageCreate, async ($) => {
 
 djsClient.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
-
+        if (config.disabledChannels.includes(interaction.channelId)) {
+            await interaction.reply({ content: "Sorry, you can't use me here!", ephemeral: true });
+            return;
+        }
         const command = djsCommands.get(interaction.commandName);
 
         if (!command) {

@@ -69,16 +69,7 @@ export function visualizer(array: number[], width: number = 64, height: number =
     let out = ''
     for (let j = 0; j < height; j++) {
         for (let i = 0; i < width; i++) {
-            const R = Math.floor((array[i + (j * width) + (array.length - (width * height))] / 256) * 7)
-            switch (R) {
-                case 0: out += ' '; break
-                case 1: out += '.'; break
-                case 2: out += ','; break
-                case 3: out += ':'; break
-                case 4: out += ';'; break
-                case 5: out += '|'; break
-                case 6: out += '#'; break
-            }
+            out += ' .,:;|#'[Math.floor((array[i + (j * width) + (array.length - (width * height))] / 256) * 7)];
         }
         out += '\n'
     }
@@ -111,7 +102,7 @@ function formatByteCount(bytes: number) {
         const gib = String(bytes / (1024 ** 3)).replace(/(?<=.\d\d)\d+$/, '')
         power1024 = gib + " GiB"
     }
-    return power1024 + " / " + power1000;
+    return power1000 + " / " + power1024;
 }
 
 export const EE = new EventEmitter();
@@ -253,6 +244,7 @@ export function renderCode(
     let lastValue: number[] = [0, 0];
     const startTime = Date.now();
     let tick = startTime;
+    if(printStats==1) console.time("Rendering");
     for (sampleIndex = 0; sampleIndex <= sampleCount; sampleIndex++) {
         if ((sampleIndex & 255) == 0) {
             const time = Date.now();
@@ -266,7 +258,7 @@ export function renderCode(
                     // @ts-expect-error - D.JS shenannigains
                     EE.emit('index', sampleIndex);
                 } else if (printStats == 1) {
-                    console.log(`\x1b[1A${progressBar(sampleIndex, sampleCount, 40)} ${sampleIndex} / ${sampleCount}`);
+                    console.log(`\x1b[1A${progressBar(sampleIndex, sampleCount, process.stdout.columns - String(sampleIndex).length - String(sampleCount).length - 7)} ${sampleIndex} / ${sampleCount}`);
                 }
             }
         };
@@ -309,23 +301,27 @@ export function renderCode(
             }
         } catch { }
     }
-    const length = Date.now() - startTime;
+    if (printStats == 1) {
+        console.log(`\x1b[1A${progressBar(1, 1, process.stdout.columns - String(sampleIndex).length * 2 - 7)} ${sampleIndex} / ${sampleIndex}`);
+        console.timeEnd("Rendering");
+    }
     let endIndex = buffer.length - 1;
     const endValue = buffer[endIndex];
-    while (buffer[endIndex] == endValue && endIndex > samplerate) --endIndex;
+    if(!stereo)
+        while (buffer[endIndex] == endValue && endIndex > samplerate) --endIndex;
     const header = Buffer.concat([
-        Buffer.from('RIFF', 'ascii'),                                 // Rescource Interchange File Format
-        write32(buffer.length + 36),                                  // filesize - 8
-        Buffer.from('WAVEfmt ', 'ascii'),                             // .wav file, begin formatting info
-        write32(16),                                                  // length of formatting info
-        write16(1),                                                   // Marker for PCM data
-        write16(stereo ? 2 : 1),                                      // Channel No.
-        write32(samplerate),                                          // Sample rate
-        write32(samplerate * (stereo ? 2 : 1)),                       // Byte rate: (Sample rate * Number of channels * Bits per sample) / 8
-        write16(stereo ? 2 : 1),                                      // Bytes per sample: (Bits per sample * Number of channels) / 8    
-        write16(8),                                                   // bits per sample
-        Buffer.from('data', 'ascii'),                                 // Begin data block
-        write32(buffer.length),                                       // How long is this block?
+        Buffer.from('RIFF', 'ascii'),           // Rescource Interchange File Format
+        write32(buffer.length + 36),            // filesize - 8
+        Buffer.from('WAVEfmt ', 'ascii'),       // .wav file, begin formatting info
+        write32(16),                            // length of formatting info
+        write16(1),                             // Marker for PCM data
+        write16(stereo ? 2 : 1),                // Channel No.
+        write32(samplerate),                    // Sample rate
+        write32(samplerate * (stereo ? 2 : 1)), // Byte rate: (Sample rate * Number of channels * Bits per sample) / 8
+        write16(stereo ? 2 : 1),                // Bytes per sample: (Bits per sample * Number of channels) / 8    
+        write16(8),                             // bits per sample
+        Buffer.from('data', 'ascii'),           // Begin data block
+        write32(buffer.length),                 // How long is this block?
     ]);
 
     const final = Buffer.concat([header, buffer.subarray(0, endIndex)]);
@@ -337,13 +333,13 @@ export function renderCode(
         .replace(/(\w\w-\w\w-\w\w-\w\w-)/g, '$1!')
         .replace(/[-!]/g, ' ')
     }
+
     if (printStats == 2) {
         // @ts-expect-error - D.JS shenannigains
         EE.emit('index', sampleCount);
         // @ts-expect-error - D.JS shenannigains
         EE.emit('done', getHeaderString(header), outputFile, formatByteCount(final.length));
     } else if (printStats == 1) {
-        console.log(`\x1b[1A${progressBar(1, 1, 40)} ${sampleIndex} / ${sampleIndex}`);
         console.log(`HEADER ${getHeaderString(header)}`);
         console.log(`FILE ${outputFile} SIZE ${formatByteCount(final.length)}`);
     }

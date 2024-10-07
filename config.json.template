@@ -1,7 +1,10 @@
 {
     "token": "YOUR_BOT_TOKEN_HERE",
-    "clientId": "YOUR_CLIENT_ID_HERE",
     "disabledChannels": [],
+    "audio": {
+        "sampleLimit": 2880000,
+        "defaultSeconds": 30
+    },
     "ffmpeg": {
         "enable": true,
         "location": "/usr/bin/ffmpeg",

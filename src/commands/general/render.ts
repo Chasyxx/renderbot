@@ -17,6 +17,7 @@
 //     Email contact is at creset200@gmail.com
 
 import { renderCodeWrapperInteraction } from '../../generateRender.js';
+import { renderbotConfig } from '../../config.js';
 
 export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody = {
     name: 'render',
@@ -38,6 +39,6 @@ export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody =
 
 export async function execute(interaction: import('discord.js').CommandInteraction) {
     const link: string = String(interaction.options.get('link',true).value||'invalid');
-    const duration: number = Math.abs(Number(interaction.options.get('duration',false)?.value??0))||30;
+    const duration: number = Math.abs(Number(interaction.options.get('duration',false)?.value??0))||renderbotConfig.audio.defaultSeconds;
     await renderCodeWrapperInteraction(interaction,link,duration);
 }

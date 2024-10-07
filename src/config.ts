@@ -1,7 +1,10 @@
 export type configType = {
     token: string;
-    clientId: string;
     disabledChannels: string[];
+    audio: {
+        sampleLimit: number;
+        defaultSeconds: number;
+    }
     ffmpeg: {
         enable: boolean,
         location: string,

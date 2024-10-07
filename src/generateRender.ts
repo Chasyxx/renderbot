@@ -107,6 +107,9 @@ function formatResponse(
     }
 }
 export async function renderCodeWrapperInteraction(interaction: DiscordJSInteraction, link: string, duration = 30, button = false): Promise<InteractionResponse<boolean> | undefined> {
+    if (config.disabledChannels.includes(interaction.channelId!)) {
+        return await interaction.reply({ content: `RenderBot is disabled for channel \`${interaction.channelId}\``, ephemeral: true });
+    }
     if (!bytebeatPlayerLinkDetectionRegexp.test(link)) {
         return await interaction.reply({ content: 'Please give a valid [dollChan](https://dollchan.net/bytebeat/) link.', ephemeral: true });
     }
@@ -127,7 +130,7 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
     }
     let msg: InteractionResponse<boolean> | null = null;
     songData.sampleRate ??= 8000;
-    if (duration * songData.sampleRate > 2_880_000) return await interaction.reply({ content: `\`\`\`Duration may not be greater than 2,880,000 samples.\n(${songData.sampleRate}Hz * ${duration}s = ${songData.sampleRate * duration} samples.)\nThe longest you can render is ${Math.floor(2_880_000 / songData.sampleRate)} seconds.\`\`\``, ephemeral: true });
+    if (duration * songData.sampleRate > config.audio.sampleLimit) return await interaction.reply({ content: `\`\`\`Duration may not be greater than ${config.audio.sampleLimit} samples.\n(${songData.sampleRate}Hz * ${duration}s = ${songData.sampleRate * duration} samples.)\nThe longest you can render is ${Math.floor(config.audio.sampleLimit / songData.sampleRate)} seconds.\`\`\``, ephemeral: true });
     if (!button) { await interaction.deferReply() }
     else msg = await interaction.reply({ content: 'Rendering started!' });
     const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat : songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat : songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat : bytebeatModes.Bytebeat, D: duration, code: songData.code } });
@@ -180,7 +183,10 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
     return;
 }
 
-export async function renderCodeWrapperMessage(message: Message, link: string): Promise<number> {
+export async function renderCodeWrapperMessage(message: Message, link: string): Promise<void> {
+    if (config.disabledChannels.includes(message.channelId)) {
+        return;
+    }
     try {
         const hash = _atob(link.slice(link.indexOf('#v3b64') + 6));
         const dataBuffer = new Uint8Array(hash.length);
@@ -196,7 +202,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
             await message.react("\u274C");
             if (error instanceof Error) await message.reply({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error.message ?? error}\n\`\`\`\nThis was an error decoding the link in the message, it may be invalid. ` });
             else await message.reply({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error}\n\`\`\`\nThis was an error decoding the link in the message, it may be invalid. ` });
-            return 1;
+            return;
         }
         songData.sampleRate ??= 8000;
         let msg;
@@ -204,13 +210,13 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
             msg = await message.reply({ content: 'Rendering started!' });
         } catch (e) {
             if (e instanceof DiscordAPIError && e.code == 50013) {
-                return 1;
+                return;
             } else {
                 if (e instanceof Error) console.error(e.stack);
                 throw e;
             }
         }
-        const duration = Math.min(2_880_000 / songData.sampleRate, 30);
+        const duration = Math.min(config.audio.sampleLimit / songData.sampleRate, config.audio.defaultSeconds);
         const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat : songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat : songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat : bytebeatModes.Bytebeat, D: duration, code: songData.code } });
         worker.on('messageerror', (e) => {
             console.error(e);
@@ -265,7 +271,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
     } catch (_) {
         await message.react("\u2757");
         console.error(_);
-        return 1;
+        return;
     }
-    return 0;
+    return;
 }

@@ -18,6 +18,7 @@
 
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
+import { v4 as uuidv4 } from 'uuid';
 const chasyxxPlayerAdditions = {
     /*bit*/        "bitC": function (x: number, y: number, z: number) { return x & y ? z : 0 },
     /*bit reverse*/"br": function (x: number, size: number = 8) {
@@ -162,7 +163,7 @@ export type renderOutputType = {
  * @param stereo Whether the code is stereo. Use `null` to autodetect.
  * @param useChasyxxPlayerAdditions Whether the exotic functions should be added.
  * @param printStats Whether stats should be printed. 0: No. 1: Yes. 2: Send events on EE.
- * @param filename A filename to use. Use `null` for render(Unix timestamp).
+ * @param filename A filename to use. Use `null` for render-(UUIDv4).
  * @param truncate Whether the function can truncate the output if rendering takes longet than 5 minutes.
  * 
  * @returns An object, where if error is a string, it shows what went wrong, and file and truncated are null.
@@ -332,7 +333,7 @@ export function renderCode(
     ]);
 
     const final = Buffer.concat([header, buffer.subarray(0, endIndex)]);
-    const outputFile = filename ?? ("output" + String(Date.now()) + ".wav");
+    const outputFile = filename ?? ("render-" + uuidv4() + ".wav");
 
     function getHeaderString(header: Buffer): string {
         return header.toString('hex')

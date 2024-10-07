@@ -81,7 +81,7 @@ function formatResponse(
     attachment: AttachmentBuilder
     ): object {
     const embed = new EmbedBuilder()
-	    .setColor(0x00FF99)
+	    .setColor(0x00FF00)
         .setTitle(`${songData.sampleRate || 8000}hz ${songData.mode || "Bytebeat"}`);
         if(link.length < 1900) {
             embed.setURL(link);
@@ -117,7 +117,15 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
     }
     let msg: InteractionResponse<boolean> | null = null;
     songData.sampleRate ??= 8000;
-    if (duration * songData.sampleRate > config.audio.sampleLimit) return await interaction.reply({ content: `\`\`\`Duration may not be greater than ${config.audio.sampleLimit} samples.\n(${songData.sampleRate}Hz * ${duration}s = ${songData.sampleRate * duration} samples.)\nThe longest you can render is ${Math.floor(config.audio.sampleLimit / songData.sampleRate)} seconds.\`\`\``, ephemeral: true });
+    if (duration * songData.sampleRate > config.audio.sampleLimit) return await interaction.reply({
+        embeds: [
+            new EmbedBuilder()
+            .setColor(0xFF0000)
+            .setTitle(`Duration may not be greater than ${config.audio.sampleLimit} samples.`)
+            .setDescription(`The longest you can render is ${Math.floor(config.audio.sampleLimit / songData.sampleRate)} seconds.`)
+            // .setFooter({ text: `${songData.sampleRate}Hz * ${duration}s = ${songData.sampleRate * duration} samples.` })
+        ], ephemeral: true
+    });
     await interaction.deferReply()
     const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat : songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat : songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat : bytebeatModes.Bytebeat, D: duration, code: songData.code, T: config.audio.maximumProcessingTime } });
     prep(worker, async (data: {finished: renderOutputType}) => {

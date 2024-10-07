@@ -173,7 +173,7 @@ export function renderCode(
     samplerate: number, mode: Modes, codeString: string,
     lengthValue: number = 10, stereo: boolean | null,
     useChasyxxPlayerAdditions: boolean, printStats: 0 | 1 | 2,
-    filename: string | null = null, truncate: boolean = true): renderOutputType {
+    filename: string | null = null, truncate: number = 300): renderOutputType {
 
     const sampleCount = Math.max(samplerate * lengthValue, samplerate);
     // @ts-expect-error - Tnank you Discord.JS for redefining EventEmitter and
@@ -251,25 +251,23 @@ export function renderCode(
     let buffer: Buffer = Buffer.alloc(sampleCount * (stereo ? 2 : 1));
     let lastValue: number[] = [0, 0];
     const startTime = Date.now();
-    let tick = startTime;
+    let lastTime = startTime;
     if(printStats==1) console.time("Rendering");
     for (sampleIndex = 0; sampleIndex <= sampleCount; sampleIndex++) {
-        if ((sampleIndex & 255) == 0) {
-            const time = Date.now();
-            if (truncate && (time - startTime) > (60 * 5 * 1000)) {
+        const time = Date.now();
+        if (time > (lastTime + 100)) {
+            if (truncate && (time - startTime) > (truncate * 1000)) {
                 truncated = true;
                 break;
             }
-            if (time > (tick + 100)) {
-                tick = time;
-                if (printStats == 2) {
-                    // @ts-expect-error - D.JS shenannigains
-                    EE.emit('index', sampleIndex);
-                } else if (printStats == 1) {
-                    console.log(`\x1b[1A${progressBar(sampleIndex, sampleCount, process.stdout.columns - String(sampleIndex).length - String(sampleCount).length - 7)} ${sampleIndex} / ${sampleCount}`);
-                }
+            lastTime = time;
+            if (printStats == 2) {
+                // @ts-expect-error - D.JS shenannigains
+                EE.emit('index', sampleIndex);
+            } else if (printStats == 1) {
+                console.log(`\x1b[1A${progressBar(sampleIndex, sampleCount, process.stdout.columns - String(sampleIndex).length - String(sampleCount).length - 7)} ${sampleIndex} / ${sampleCount}`);
             }
-        };
+        }
         try {
             const out = codeFunc(mode == Modes.Funcbeat ? sampleIndex / samplerate : sampleIndex, samplerate);
             if (stereo) {
@@ -343,8 +341,9 @@ export function renderCode(
     }
 
     if (printStats == 2) {
-        // @ts-expect-error - D.JS shenannigains
-        EE.emit('index', sampleCount);
+        if(!truncated)
+            // @ts-expect-error - D.JS shenannigains
+            EE.emit('index', sampleCount);
         // @ts-expect-error - D.JS shenannigains
         EE.emit('done', getHeaderString(header), outputFile, formatByteCount(final.length));
     } else if (printStats == 1) {

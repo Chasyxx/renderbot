@@ -2,9 +2,14 @@ export type configType = {
     token: string;
     disabledChannels: string[];
     audio: {
-        sampleLimit: number;
-        defaultSeconds: number;
-    }
+        sampleLimit: number,
+        defaultSeconds: number,
+        maximumProcessingTime: number,
+    };
+    credit: {
+        message: boolean,
+        command: boolean
+    };
     ffmpeg: {
         enable: boolean,
         location: string,

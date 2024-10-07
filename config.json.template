@@ -3,7 +3,12 @@
     "disabledChannels": [],
     "audio": {
         "sampleLimit": 2880000,
-        "defaultSeconds": 30
+        "defaultSeconds": 30,
+        "maximumProcessingTime": 300
+    },
+    "credit": {
+        "message": false,
+        "command": false
     },
     "ffmpeg": {
         "enable": true,

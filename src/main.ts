@@ -64,10 +64,6 @@ djsClient.on(Events.MessageCreate, async ($) => {
 
 djsClient.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand()) {
-        if (config.disabledChannels.includes(interaction.channelId)) {
-            await interaction.reply({ content: "Sorry, you can't use me here!", ephemeral: true });
-            return;
-        }
         const command = djsCommands.get(interaction.commandName);
 
         if (!command) {
@@ -80,19 +76,16 @@ djsClient.on(Events.InteractionCreate, async (interaction) => {
             await command.execute(interaction);
         } catch (error) {
 	    try {
-                console.error(error);
-                if (interaction.replied || interaction.deferred) {
-                    await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
-                } else {
-                    await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
-                }
+            console.error(error);
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+            } else {
+                await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+            }
 	    } catch(error) {
 		    console.error(error, "Even worse!!");
 	    }
         }
-    } else if ('customId' in interaction && interaction.customId == 'full') {
-        const link = interaction.message!.content.match(bytebeatPlayerLinkDetectionRegexp)![0];
-        renderCodeWrapperInteraction(interaction, link, 60, true);
     }
 });
 

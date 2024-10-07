@@ -71,6 +71,7 @@ try {
     false,
     2,
     null,
+    workerData.T
   );
 } catch (e) {
   if (e instanceof Error) x = { error: e.message ?? e, file: null };

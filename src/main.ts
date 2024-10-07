@@ -17,24 +17,18 @@
 //     Email contact is at creset200@gmail.com
 
 import { readdir } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, Collection, Events, GatewayIntentBits } from 'discord.js';
-type configType = {
-    token: string;
-    clientId: string;
-    guildId: string;
-    disabledChannels: string[];
-};
-const config: configType = JSON.parse(readFileSync('../config.json', 'ascii'));
+import ffmpeg from 'fluent-ffmpeg';
+import { renderbotConfig as config } from './config.js';
+if(config.ffmpeg.enable) ffmpeg.setFfmpegPath(config.ffmpeg.location);
 import { renderCodeWrapperInteraction, renderCodeWrapperMessage } from './generateRender.js';
+import { bytebeatPlayerLinkDetectionRegexp } from './config.js';
 
 const djsClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
 const djsCommands: Collection<string, {data: { name: string, description: string }, execute: Function}> = new Collection();
-
-const bytebeatPlayLinkDetectionRegexp = /https:\/\/dollchan\.net\/bytebeat\/?(\/index\.html)?#v3b64[^\)\r\n]+?(?=$|\)| )/;
 
 function addCommandsfromFilesWrapper(commandsPath: string) {
     return (commandFiles: string[]) => {
@@ -62,8 +56,8 @@ readdir(djsCommandsPath).then(djsCommandFolders => {
 djsClient.on(Events.MessageCreate, async ($) => {
     if ($.author.bot) return;
     if (config.disabledChannels.includes($.channelId)) return;
-    if (bytebeatPlayLinkDetectionRegexp.test($.content)) {
-        const link = $.content.match(bytebeatPlayLinkDetectionRegexp)![0];
+    if (bytebeatPlayerLinkDetectionRegexp.test($.content)) {
+        const link = $.content.match(bytebeatPlayerLinkDetectionRegexp)![0];
         renderCodeWrapperMessage($, link.trim());
     }
 });
@@ -97,7 +91,7 @@ djsClient.on(Events.InteractionCreate, async (interaction) => {
 	    }
         }
     } else if ('customId' in interaction && interaction.customId == 'full') {
-        const link = interaction.message!.content.match(bytebeatPlayLinkDetectionRegexp)![0];
+        const link = interaction.message!.content.match(bytebeatPlayerLinkDetectionRegexp)![0];
         renderCodeWrapperInteraction(interaction, link, 60, true);
     }
 });

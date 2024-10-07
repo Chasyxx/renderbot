@@ -1,4 +1,14 @@
 {
     "token": "YOUR_BOT_TOKEN_HERE",
-    "clientId": "YOUR_CLIENT_ID_HERE"
+    "clientId": "YOUR_CLIENT_ID_HERE",
+    "disabledChannels": [],
+    "ffmpeg": {
+        "enable": true,
+        "location": "/usr/bin/ffmpeg",
+        "format": "ogg",
+        "fileExtension": ".ogg",
+        "extra": {
+            "audioQuality": [5]
+        }
+    }
 }

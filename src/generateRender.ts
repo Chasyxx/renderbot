@@ -18,14 +18,24 @@
 
 import { inflateRaw } from 'pako';
 import { readFileSync, unlinkSync } from 'fs';
-import { AttachmentBuilder, DiscordAPIError } from 'discord.js';
-import { CommandInteraction, ButtonInteraction, AnySelectMenuInteraction, ModalSubmitInteraction, InteractionResponse, Message } from 'discord.js';
+import { unlink } from 'fs/promises';
+import { AnySelectMenuInteraction, AttachmentBuilder, DiscordAPIError, ModalSubmitInteraction } from 'discord.js';
+import { CommandInteraction, ButtonInteraction, InteractionResponse, Message } from 'discord.js';
 import { Worker } from 'worker_threads';
-import { progressBar, Modes as bytebeatModes } from './bytebeatToAudio.js';
+import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.js';
+import { bytebeatPlayerLinkDetectionRegexp, renderbotConfig as config } from './config.js';
+import ffmpeg from 'fluent-ffmpeg'
+
+type DiscordJSInteraction = CommandInteraction | ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction
+type DollchanSongData = {
+  sampleRate: number,
+  mode: "Bytebeat" | "Signed Bytebeat" | "Floatbeat" | "Funcbeat"
+}
 
 function _btoa($: string): string {
     return Buffer.from($, 'binary').toString('base64');
 }
+
 export function _atob($: string): string {
     return Buffer.from($, 'base64').toString('binary');
 }
@@ -65,8 +75,39 @@ function prep(worker: Worker, fin: (msg: any) => void | Promise<void>) {
     })
 }
 
-export async function renderCodeWrapperInteraction(interaction: CommandInteraction | ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction, link: string, duration = 30, button = false): Promise<InteractionResponse<boolean> | undefined> {
-    if (link.indexOf('#v3b64') == -1) {
+function formatResponse(
+    // Content data
+    link: string, songData: DollchanSongData, credit: boolean,
+    truncated: boolean, mention: string,
+    // other
+    duration: number,
+    attachment: AttachmentBuilder
+    ): object {
+    const string =  (link.length > 1900 ? 
+        `*${songData.sampleRate || 8000}hz ${songData.mode || "Bytebeat"}*` :
+        `*[Rendered code](<${link}>), ${songData.sampleRate || 8000}hz ${songData.mode || "Bytebeat"}*`)
+        + (truncated ? " (Truncated) " : "")
+        + (credit ? `\nRequested by ${mention}` : '')
+    return {
+        content: string,
+        files: [attachment],
+        components: duration >= 60 || link.length > 1900 || songData.sampleRate > 48000 ? undefined : [
+            {
+                type: 1,
+                components: [
+                    {
+                        type: 2,
+                        label: '60 second render',
+                        style: 1,
+                        custom_id: 'full'
+                    }
+                ]
+            }
+        ]
+    }
+}
+export async function renderCodeWrapperInteraction(interaction: DiscordJSInteraction, link: string, duration = 30, button = false): Promise<InteractionResponse<boolean> | undefined> {
+    if (!bytebeatPlayerLinkDetectionRegexp.test(link)) {
         return await interaction.reply({ content: 'Please give a valid [dollChan](https://dollchan.net/bytebeat/) link.', ephemeral: true });
     }
     const hash = _atob(link.slice(link.indexOf('#v3b64') + 6));
@@ -90,31 +131,47 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
     if (!button) { await interaction.deferReply() }
     else msg = await interaction.reply({ content: 'Rendering started!' });
     const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat : songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat : songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat : bytebeatModes.Bytebeat, D: duration, code: songData.code } });
-    prep(worker, async (data) => {
-        const { error, file, truncated } = data.finished;
+    prep(worker, async (data: {finished: renderOutputType}) => {
+        const { error, file: wavFile, truncated } = data.finished;
         if (error == null) {
-            const fileData = readFileSync(file);
-            const attachment = new AttachmentBuilder(fileData, { name: file });
-            if (button) await msg!.delete();
-            await interaction.followUp(
-                {
-                    content: link.length > 1900 ? `*${songData.sampleRate || 8000}hz ${songData.mode || "Bytebeat"}*` : `*[Rendered code](<${link}>), ${songData.sampleRate || 8000}hz ${songData.mode || "Bytebeat"}*` + (truncated ? " (Truncated) " : "") + (button ? `\nRequested by <@${interaction.member!.user.id}>` : ''),
-                    files: [attachment],
-                    components: duration >= 60 || link.length > 1900 || songData.sampleRate > 48000 ? undefined : [
-                        {
-                            type: 1,
-                            components: [
-                                {
-                                    type: 2,
-                                    label: '60 second render',
-                                    style: 1,
-                                    custom_id: 'full'
-                                }
-                            ]
-                        }
-                    ]
-                })
-            unlinkSync(file);
+            const finalFile = wavFile.replace('.wav',config.ffmpeg.fileExtension);
+            if(config.ffmpeg.enable) {
+                let conversion = ffmpeg(wavFile)
+                    .toFormat(config.ffmpeg.format)
+                    .on('end', async()=>{
+                        unlinkSync(wavFile);
+                        const fileData = readFileSync(finalFile);
+                        const attachment = new AttachmentBuilder(fileData, { name: finalFile });
+                        if (button) await msg!.delete();
+                        await interaction.followUp(formatResponse(link,songData,button,truncated,`<@${interaction.member!.user.id}>`,duration,attachment))
+                        unlinkSync(finalFile);
+                    })
+                    .on('error', async(error,o,e)=>{
+                        console.warn("FFMPEG FAILED",error);
+                        console.warn("Last few lines of stdout:");
+                        console.warn(o?.split('\n').slice(-5).join('\n'))
+                        console.warn("Last few lines of stderr:");
+                        console.warn(e?.split('\n').slice(-5).join('\n'))
+                        unlink(finalFile).then(()=>{}).catch(()=>{}) // Just try to delete the file, doesn't matter if it succeeds
+                        const fileData = readFileSync(wavFile);
+                        const attachment = new AttachmentBuilder(fileData, { name: wavFile });
+                        if (button) await msg!.delete();
+                        await interaction.followUp(formatResponse(link,songData,button,truncated,`<@${interaction.member!.user.id}>`,duration,attachment))
+                        unlinkSync(wavFile);
+                    })
+                for(const key in config.ffmpeg.extra) {
+                    const value = config.ffmpeg.extra[key];
+                    //@ts-ignore - That probably means something.
+                    conversion = conversion[key].apply(conversion,value)
+                }
+                conversion = conversion.save(finalFile)
+            } else {
+                const fileData = readFileSync(wavFile);
+                const attachment = new AttachmentBuilder(fileData, { name: wavFile });
+                if (button) await msg!.delete();
+                await interaction.followUp(formatResponse(link,songData,button,truncated,`<@${interaction.member!.user.id}>`,duration,attachment))
+                unlinkSync(wavFile);
+            }
         } else {
             if (button) await msg!.delete();
             await interaction.followUp({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error}\n\`\`\`` });
@@ -153,36 +210,52 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                 throw e;
             }
         }
-        const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat : songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat : songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat : bytebeatModes.Bytebeat, D: Math.min(2_880_000 / songData.sampleRate, 30), code: songData.code } });
+        const duration = Math.min(2_880_000 / songData.sampleRate, 30);
+        const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat : songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat : songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat : bytebeatModes.Bytebeat, D: duration, code: songData.code } });
         worker.on('messageerror', (e) => {
             console.error(e);
         });
         prep(worker, async (data) => {
-            const { error, file, truncated } = data.finished;
+            const { error, file: wavFile, truncated } = data.finished;
             if (error == null) {
-                const fileData = readFileSync(file);
-                const attachment = new AttachmentBuilder(fileData, { name: file });
-                await msg.delete();
-                await message.reply(
-                    {
-                        content: (link.length > 1900 ? `*Render, ${songData.sampleRate}hz ${songData.mode || "Bytebeat"}*` : `*[Rendered code](<${link}>), ${songData.sampleRate}hz ${songData.mode || "Bytebeat"}*`) + (truncated ? " (Truncated)" : ""),
-                        files: [attachment],
-                        components: songData.sampleRate > 48000 || link.length > 1900 ? undefined : [
-                            {
-                                type: 1,
-                                components: [
-                                    {
-                                        type: 2,
-                                        label: '60 second render',
-                                        style: 1,
-                                        custom_id: 'full'
-                                    }
-                                ]
-                            }
-                        ]
-                    })
-                unlinkSync(file);
-
+                const finalFile = wavFile.replace('.wav',config.ffmpeg.fileExtension);
+                if(config.ffmpeg.enable) {
+                    let conversion = ffmpeg(wavFile)
+                        .toFormat(config.ffmpeg.format)
+                        .on('end', async()=>{
+                            unlinkSync(wavFile);
+                            const fileData = readFileSync(finalFile);
+                            const attachment = new AttachmentBuilder(fileData, { name: finalFile });
+                            await msg!.delete();
+                            await message.reply(formatResponse(link,songData,false,truncated,"",duration,attachment))
+                            unlinkSync(finalFile);
+                        })
+                        .on('error', async(error,o,e)=>{
+                            console.warn("FFMPEG FAILED",error);
+                            console.warn("Last few lines of stdout:");
+                            console.warn(o?.split('\n').slice(-5).join('\n'))
+                            console.warn("Last few lines of stderr:");
+                            console.warn(e?.split('\n').slice(-5).join('\n'))
+                            unlink(finalFile).then(()=>{}).catch(()=>{}) // Just try to delete the file, doesn't matter if it succeeds
+                            const fileData = readFileSync(wavFile);
+                            const attachment = new AttachmentBuilder(fileData, { name: wavFile });
+                            await msg!.delete();
+                            await message.reply(formatResponse(link,songData,false,truncated,"",duration,attachment))
+                            unlinkSync(wavFile);
+                        })
+                    for(const key in config.ffmpeg.extra) {
+                        const value = config.ffmpeg.extra[key];
+                        //@ts-ignore - That probably means something.
+                        conversion = conversion[key].apply(conversion,value)
+                    }
+                    conversion = conversion.save(finalFile)
+                } else {
+                    const fileData = readFileSync(wavFile);
+                    const attachment = new AttachmentBuilder(fileData, { name: wavFile });
+                    await msg!.delete();
+                    await message.reply(formatResponse(link,songData,false,truncated,"",duration,attachment))
+                    unlinkSync(wavFile);
+                }
             } else {
                 await message.react("\u2755");
                 await msg.delete();

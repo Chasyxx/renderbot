@@ -143,6 +143,16 @@ export enum Modes {
     Funcbeat = 3
 };
 
+export type renderOutputType = {
+    error: null;
+    file: string;
+    truncated: boolean;
+} | {
+    error: string;
+    file: null;
+    truncated: null;
+};
+
 /**
  * Render a bytebeat code into a .wav file.
  * @param samplerate Samplerate to use.
@@ -162,10 +172,7 @@ export function renderCode(
     samplerate: number, mode: Modes, codeString: string,
     lengthValue: number = 10, stereo: boolean | null,
     useChasyxxPlayerAdditions: boolean, printStats: 0 | 1 | 2,
-    filename: string | null = null, truncate: boolean = true): 
-
-    ({ error: null, file: string, truncated: boolean }
-    | { error: string, file: null, truncated: null }) {
+    filename: string | null = null, truncate: boolean = true): renderOutputType {
 
     const sampleCount = Math.max(samplerate * lengthValue, samplerate);
     // @ts-expect-error - Tnank you Discord.JS for redefining EventEmitter and

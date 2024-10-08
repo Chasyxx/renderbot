@@ -79,14 +79,19 @@ function prep(worker: Worker, fin: (msg: any) => void | Promise<void>) {
 function formatResponse(
     link: string, songData: DollchanSongData, credit: boolean,
     truncated: boolean, mention: string,
-    attachment: AttachmentBuilder
+    attachment: AttachmentBuilder, renderTime: number, ffmpegTime?: number
     ): object {
     const embed = new EmbedBuilder()
 	    .setColor(0x00FF00)
-        .setTitle(`${songData.sampleRate || 8000}hz ${songData.mode || "Bytebeat"}`);
-        if(link.length < 1900) {
+        .setTitle(`${songData.sampleRate || 8000}hz ${songData.mode || "Bytebeat"}`)
+        .addFields(
+            { name: "Length", value: `${songData.code.length}c`, inline: true },
+            { name: "Render time", value: `${renderTime}s`, inline: true }
+        );
+        if(ffmpegTime != undefined) embed.addFields({ name: "FFMPEG time", value: `${ffmpegTime}s`, inline: true })
+        // if(link.length < 1900) {
             embed.setURL(link);
-        }
+        // }
         if(truncated) {
             embed.setFooter({ text: 'Output truncated due to processing time' })
         }
@@ -97,10 +102,19 @@ function formatResponse(
         embeds: [embed]
     }
 }
+
 export async function renderCodeWrapperInteraction(interaction: DiscordJSInteraction, link: string, duration = 30): Promise<InteractionResponse<boolean> | undefined> {
     if (!bytebeatPlayerLinkDetectionRegexp.test(link)) {
-        return await interaction.reply({ content: 'Please give a valid [dollChan](https://dollchan.net/bytebeat/) link.', ephemeral: true });
+        return await interaction.reply({
+            embeds: [
+                new EmbedBuilder()
+                .setColor(0xFF0000)
+                .setTitle("Invalid link")
+                .setDescription("Please give a valid [dollchan](https://dollchan.net/bytebeat) link.")
+            ]
+        })
     }
+    link = link.match(bytebeatPlayerLinkDetectionRegexp)![0];
     const hash = _atob(link.slice(link.indexOf('#v3b64') + 6));
     const dataBuffer = new Uint8Array(hash.length);
     for (let i = 0; i < hash.length; i++) {
@@ -113,8 +127,26 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
         songData = JSON.parse(inflateRaw(dataBuffer, { to: 'string' }));
     } catch (error) {
         if (error instanceof Error)
-            return await interaction.reply({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error.message ?? error}\n\`\`\`\nThis was an error decoding the link given, ensure it is valid. `, ephemeral: true });
-        else return await interaction.reply({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error}\n\`\`\`\nThis was an error decoding the link given, ensure it is valid. `, ephemeral: true });
+            return await interaction.reply({
+                embeds: [
+                    new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle("Error decoding link")
+                    .setDescription("Ensure the link is valid.")
+                    .addFields({ name: "Error", value: error.message ?? error})
+                ],
+                ephemeral: true
+            })
+        else return await interaction.reply({
+            embeds: [
+                new EmbedBuilder()
+                .setColor(0xFF0000)
+                .setTitle("Error decoding link")
+                .setDescription("Ensure the link is valid.")
+                .addFields({ name: "Error", value: String(error) })
+            ],
+            ephemeral: true
+        })
     }
     let msg: InteractionResponse<boolean> | null = null;
     songData.sampleRate ??= 8000;
@@ -128,19 +160,28 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
         ], ephemeral: true
     });
     await interaction.deferReply()
+    const renderStartTime = Date.now();
     const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat : songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat : songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat : bytebeatModes.Bytebeat, D: duration, code: songData.code, T: config.audio.maximumProcessingTime } });
     prep(worker, async (data: {finished: renderOutputType}) => {
         const { error, file: wavFile, truncated } = data.finished;
+        const renderEndTime = Date.now();
         if (error == null) {
             const finalFile = wavFile.replace('.wav',config.ffmpeg.fileExtension);
             if(config.ffmpeg.enable) {
+                const ffmpegStartTime = Date.now();
                 let conversion = ffmpeg(wavFile)
                     .toFormat(config.ffmpeg.format)
                     .on('end', async()=>{
+                        const ffmpegEndTime = Date.now();
                         unlinkSync(wavFile);
                         const fileData = readFileSync(finalFile);
                         const attachment = new AttachmentBuilder(fileData, { name: finalFile });
-                        await interaction.followUp(formatResponse(link,songData,config.credit.command,truncated,`<@${interaction.user.id}>`,attachment))
+                        await interaction.followUp(formatResponse(
+                            link,songData,config.credit.command,truncated,
+                            `<@${interaction.user.id}>`,attachment
+                            ,Math.round((renderEndTime - renderStartTime) / 1000)
+                            ,Math.round((ffmpegEndTime - ffmpegStartTime) / 1000)
+                        ));
                         unlinkSync(finalFile);
                     })
                     .on('error', async(error,o,e)=>{
@@ -152,7 +193,11 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
                         unlink(finalFile).then(()=>{}).catch(()=>{}) // Just try to delete the file, doesn't matter if it succeeds
                         const fileData = readFileSync(wavFile);
                         const attachment = new AttachmentBuilder(fileData, { name: wavFile });
-                        await interaction.followUp(formatResponse(link,songData,config.credit.command,truncated,`<@${interaction.user.id}>`,attachment))
+                        await interaction.followUp(formatResponse(
+                            link,songData,config.credit.command,truncated,
+                            `<@${interaction.user.id}>`,attachment
+                            ,Math.round((renderEndTime - renderStartTime) / 1000)
+                        ));
                         unlinkSync(wavFile);
                     })
                 for(const key in config.ffmpeg.extra) {
@@ -164,11 +209,22 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
             } else {
                 const fileData = readFileSync(wavFile);
                 const attachment = new AttachmentBuilder(fileData, { name: wavFile });
-                await interaction.followUp(formatResponse(link,songData,config.credit.command,truncated,`<@${interaction.user.id}>`,attachment))
+                await interaction.followUp(formatResponse(
+                    link,songData,config.credit.command,truncated,
+                    `<@${interaction.user.id}>`,attachment
+                    ,Math.round((renderEndTime - renderStartTime) / 1000)
+                ));
                 unlinkSync(wavFile);
             }
         } else {
-            await interaction.followUp({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error}\n\`\`\`` });
+            await interaction.followUp({
+                embeds: [
+                    new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle("Error while rendering")
+                    .setDescription(`\`${error}\``)
+                ]
+            })
         }
     });
     return;
@@ -188,8 +244,25 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
             songData = JSON.parse(inflateRaw(dataBuffer, { to: 'string' }));
         } catch (error) {
             await message.react("\u274C");
-            if (error instanceof Error) await message.reply({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error.message ?? error}\n\`\`\`\nThis was an error decoding the link in the message, it may be invalid. ` });
-            else await message.reply({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error}\n\`\`\`\nThis was an error decoding the link in the message, it may be invalid. ` });
+            if (error instanceof Error)
+                await message.reply({
+                    embeds: [
+                        new EmbedBuilder()
+                        .setColor(0xFF0000)
+                        .setTitle("Error decoding link")
+                        .setDescription("The link may be invalid.")
+                        .addFields({ name: "Error", value: error.message ?? error})
+                    ]
+                })
+            else await message.reply({
+                embeds: [
+                    new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle("Error decoding link")
+                    .setDescription("The link may be invalid.")
+                    .addFields({ name: "Error", value: String(error) })
+                ]
+            })
             return;
         }
         songData.sampleRate ??= 8000;
@@ -209,19 +282,28 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
         worker.on('messageerror', (e) => {
             console.error(e);
         });
+        const renderStartTime = Date.now();
         prep(worker, async (data) => {
+            const renderEndTime = Date.now();
             const { error, file: wavFile, truncated } = data.finished;
             if (error == null) {
                 const finalFile = wavFile.replace('.wav',config.ffmpeg.fileExtension);
                 if(config.ffmpeg.enable) {
+                    const ffmpegStartTime = Date.now();
                     let conversion = ffmpeg(wavFile)
                         .toFormat(config.ffmpeg.format)
                         .on('end', async()=>{
+                            const ffmpegEndTime = Date.now();
                             unlinkSync(wavFile);
                             const fileData = readFileSync(finalFile);
                             const attachment = new AttachmentBuilder(fileData, { name: finalFile });
                             await msg!.delete();
-                            await message.reply(formatResponse(link,songData,config.credit.message,truncated,`<@${message.member?.id}>`,attachment))
+                            await message.reply(formatResponse(
+                                link,songData,config.credit.command,truncated,
+                                `<@${message.member?.id}>`,attachment
+                                ,Math.round((renderEndTime - renderStartTime) / 1000)
+                                ,Math.round((ffmpegEndTime - ffmpegStartTime) / 1000)
+                            ));
                             unlinkSync(finalFile);
                         })
                         .on('error', async(error,o,e)=>{
@@ -234,7 +316,11 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                             const fileData = readFileSync(wavFile);
                             const attachment = new AttachmentBuilder(fileData, { name: wavFile });
                             await msg!.delete();
-                            await message.reply(formatResponse(link,songData,config.credit.message,truncated,`<@${message.member?.id}>`,attachment))
+                            await message.reply(formatResponse(
+                                link,songData,config.credit.command,truncated,
+                                `<@${message.member?.id}>`,attachment
+                                ,Math.round((renderEndTime - renderStartTime) / 1000)
+                            ));
                             unlinkSync(wavFile);
                         })
                     for(const key in config.ffmpeg.extra) {
@@ -247,13 +333,24 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                     const fileData = readFileSync(wavFile);
                     const attachment = new AttachmentBuilder(fileData, { name: wavFile });
                     await msg!.delete();
-                    await message.reply(formatResponse(link,songData,config.credit.message,truncated,`<@${message.member?.id}>`,attachment))
+                    await message.reply(formatResponse(
+                        link,songData,config.credit.command,truncated,
+                        `<@${message.member?.id}>`,attachment
+                        ,Math.round((renderEndTime - renderStartTime) / 1000)
+                    ));
                     unlinkSync(wavFile);
                 }
             } else {
                 await message.react("\u2755");
                 await msg.delete();
-                await message.reply({ content: `\`\`\`ansi\n\x1b[31m[ERR]\x1b[0m ${error}\n\`\`\`` });
+                await message.reply({
+                    embeds: [
+                        new EmbedBuilder()
+                        .setColor(0xFF0000)
+                        .setTitle("Error while rendering")
+                        .setDescription(`\`${error}\``)
+                    ]
+                })
             }
         })
     } catch (_) {

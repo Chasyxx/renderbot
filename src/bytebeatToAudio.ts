@@ -182,7 +182,7 @@ export function renderCode(
     let getValues: Function;
     switch (mode) {
         case Modes.Bytebeat: default: getValues = (x: number) => (x & 255); break;
-        case Modes.SignedBytebeat: getValues = (x: number) => (x + 127 & 255); break;
+        case Modes.SignedBytebeat: getValues = (x: number) => (x + 128 & 255); break;
         case Modes.Floatbeat:
         case Modes.Funcbeat: getValues = (x: number) => Math.max(-1, Math.min(1, x)) * 127.5 + 128 & 255; break;
     }

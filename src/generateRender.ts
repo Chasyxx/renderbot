@@ -29,7 +29,8 @@ import ffmpeg from 'fluent-ffmpeg'
 type DiscordJSInteraction = CommandInteraction | ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction
 type DollchanSongData = {
   sampleRate: number,
-  mode: "Bytebeat" | "Signed Bytebeat" | "Floatbeat" | "Funcbeat"
+  mode: "Bytebeat" | "Signed Bytebeat" | "Floatbeat" | "Funcbeat",
+  code: string
 }
 
 function _btoa($: string): string {
@@ -107,7 +108,7 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
             dataBuffer[i] = hash.charCodeAt(i);
         }
     }
-    let songData;
+    let songData: DollchanSongData;
     try {
         songData = JSON.parse(inflateRaw(dataBuffer, { to: 'string' }));
     } catch (error) {
@@ -157,9 +158,9 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
                 for(const key in config.ffmpeg.extra) {
                     const value = config.ffmpeg.extra[key];
                     //@ts-ignore - That probably means something.
-                    conversion = conversion[key].apply(conversion,value)
+                    conversion[key].apply(conversion,value)
                 }
-                conversion = conversion.save(finalFile)
+                conversion.save(finalFile)
             } else {
                 const fileData = readFileSync(wavFile);
                 const attachment = new AttachmentBuilder(fileData, { name: wavFile });
@@ -239,9 +240,9 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                     for(const key in config.ffmpeg.extra) {
                         const value = config.ffmpeg.extra[key];
                         //@ts-ignore - That probably means something.
-                        conversion = conversion[key].apply(conversion,value)
+                        conversion[key].apply(conversion,value)
                     }
-                    conversion = conversion.save(finalFile)
+                    conversion.save(finalFile)
                 } else {
                     const fileData = readFileSync(wavFile);
                     const attachment = new AttachmentBuilder(fileData, { name: wavFile });

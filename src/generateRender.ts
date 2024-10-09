@@ -89,9 +89,9 @@ function formatResponse(
             { name: "Render time", value: `${renderTime}s`, inline: true }
         );
         if(ffmpegTime != undefined) embed.addFields({ name: "FFMPEG time", value: `${ffmpegTime}s`, inline: true })
-        // if(link.length < 1900) {
+        if(link.length < 2048) {
             embed.setURL(link);
-        // }
+        }
         if(truncated) {
             embed.setFooter({ text: 'Output truncated due to processing time' })
         }

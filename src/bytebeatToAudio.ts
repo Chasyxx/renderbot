@@ -330,7 +330,7 @@ export function renderCode(
         write32(buffer.length),                 // How long is this block?
     ]);
 
-    const final = Buffer.concat([header, buffer.subarray(0, endIndex)]);
+    const final = Buffer.concat([header, buffer.subarray(0, endIndex + 1)]);
     const outputFile = filename ?? ("render-" + uuidv4() + ".wav");
 
     function getHeaderString(header: Buffer): string {

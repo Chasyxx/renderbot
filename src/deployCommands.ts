@@ -21,9 +21,7 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs'
-const config = JSON.parse(readFileSync('../config.json', 'utf-8'));
-
-const { clientId, token } = config;
+import { renderbotConfig as config } from './import/config.js';
 
 const commands: ({ name: string, description: string })[] = [];
 const foldersPath = fileURLToPath(new URL('commands', import.meta.url));
@@ -52,10 +50,10 @@ readdir(foldersPath).then(async commandFolders => {
         }
     }
 }).then(() => {
-    const rest = new REST().setToken(token);
+    const rest = new REST().setToken(config.token);
     try {
         console.log(`Started refreshing ${commands.length} application (/) commands.`);
-        rest.put(Routes.applicationCommands(clientId), { body: commands }).then(data => {
+        rest.put(Routes.applicationCommands(Buffer.from(config.token.match(/^[\w\d=]+?(?=\.)/)![0],'base64').toString('binary')), { body: commands }).then(data => {
             //@ts-expect-error
             console.log(`Successfully reloaded ${data.length} application (/) commands.`);
         });

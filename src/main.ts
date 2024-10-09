@@ -21,10 +21,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, Collection, Events, GatewayIntentBits } from 'discord.js';
 import ffmpeg from 'fluent-ffmpeg';
-import { renderbotConfig as config } from './config.js';
+import { renderbotConfig as config } from './import/config.js';
 if(config.ffmpeg.enable) ffmpeg.setFfmpegPath(config.ffmpeg.location);
 import { renderCodeWrapperInteraction, renderCodeWrapperMessage } from './generateRender.js';
-import { bytebeatPlayerLinkDetectionRegexp } from './config.js';
+import { bytebeatPlayerLinkDetectionRegexp } from './import/bytebeatplayer.js';
 
 const djsClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 

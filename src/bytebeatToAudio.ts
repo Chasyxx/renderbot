@@ -16,9 +16,10 @@
 
 //     Email contact is at creset200@gmail.com
 
+export {};
+
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
-import { v4 as uuidv4 } from 'uuid';
 const chasyxxPlayerAdditions = {
     /*bit*/        "bitC": function (x: number, y: number, z: number) { return x & y ? z : 0 },
     /*bit reverse*/"br": function (x: number, size: number = 8) {
@@ -170,10 +171,10 @@ export type renderOutputType = {
  * If error is null, file is the filename of the output and truncated is a boolean stating if the output was truncated due to taking too long to render.
  */
 export function renderCode(
-    samplerate: number, mode: Modes, codeString: string,
+    samplerate: number, mode: Modes, codeString: string, filename: string,
     lengthValue: number = 10, stereo: boolean | null,
     useChasyxxPlayerAdditions: boolean, printStats: 0 | 1 | 2,
-    filename: string | null = null, truncate: number = 300): renderOutputType {
+    truncate: number = 300): renderOutputType {
 
     const sampleCount = Math.max(samplerate * lengthValue, samplerate);
     // @ts-expect-error - Tnank you Discord.JS for redefining EventEmitter and
@@ -331,7 +332,7 @@ export function renderCode(
     ]);
 
     const final = Buffer.concat([header, buffer.subarray(0, endIndex + 1)]);
-    const outputFile = filename ?? ("render-" + uuidv4() + ".wav");
+    const outputFile = filename;
 
     function getHeaderString(header: Buffer): string {
         return header.toString('hex')

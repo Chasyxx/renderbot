@@ -9,7 +9,8 @@
   "scripts": {
     "tsc": "./node_modules/typescript/bin/tsc",
     "bot": "cd target && node main.js",
-    "cli": "cd target/cli && node cli.js"
+    "cli": "cd target/cli && node cli.js",
+    "cmd": "cd target && node deployCommands.js"
   },
   "type": "module",
   "devDependencies": {

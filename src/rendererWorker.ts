@@ -66,11 +66,11 @@ try {
     workerData.SR,
     workerData.M,
     workerData.code,
+    workerData.N,
     workerData.D,
     null,
     false,
     2,
-    null,
     workerData.T
   );
 } catch (e) {

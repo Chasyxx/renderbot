@@ -16,22 +16,20 @@
 
 //     Email contact is at creset200@gmail.com
 
-import { inflateRaw } from 'pako';
+export {};
+
 import { readFileSync, unlinkSync } from 'fs';
 import { unlink } from 'fs/promises';
 import { AnySelectMenuInteraction, AttachmentBuilder, DiscordAPIError, EmbedBuilder, ModalSubmitInteraction } from 'discord.js';
 import { CommandInteraction, ButtonInteraction, InteractionResponse, Message } from 'discord.js';
 import { Worker } from 'worker_threads';
 import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.js';
-import { bytebeatPlayerLinkDetectionRegexp, renderbotConfig as config } from './config.js';
+import { renderbotConfig as config } from './import/config.js';
+import { BytebeatLinkToSongData, bytebeatPlayerLinkDetectionRegexp, BytebeatSongData } from './import/bytebeatplayer.js';
 import ffmpeg from 'fluent-ffmpeg'
+import { v4 as uuidv4 } from 'uuid';
 
 type DiscordJSInteraction = CommandInteraction | ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction
-type DollchanSongData = {
-  sampleRate: number,
-  mode: "Bytebeat" | "Signed Bytebeat" | "Floatbeat" | "Funcbeat",
-  code: string
-}
 
 function _btoa($: string): string {
     return Buffer.from($, 'binary').toString('base64');
@@ -77,7 +75,7 @@ function prep(worker: Worker, fin: (msg: any) => void | Promise<void>) {
 }
 
 function formatResponse(
-    link: string, songData: DollchanSongData, credit: boolean,
+    link: string, songData: BytebeatSongData, credit: boolean,
     truncated: boolean, mention: string,
     attachment: AttachmentBuilder, renderTime: number, ffmpegTime?: number
     ): object {
@@ -97,7 +95,6 @@ function formatResponse(
         }
         if(credit) embed.addFields({ name: 'Triggered by', value: mention, inline: true});
     return {
-        // content: string,
         files: [attachment],
         embeds: [embed]
     }
@@ -111,20 +108,14 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
                 .setColor(0xFF0000)
                 .setTitle("Invalid link")
                 .setDescription("Please give a valid [dollchan](https://dollchan.net/bytebeat) link.")
-            ]
+            ],
+            ephemeral: true
         })
     }
     link = link.match(bytebeatPlayerLinkDetectionRegexp)![0];
-    const hash = _atob(link.slice(link.indexOf('#v3b64') + 6));
-    const dataBuffer = new Uint8Array(hash.length);
-    for (let i = 0; i < hash.length; i++) {
-        if (Object.prototype.hasOwnProperty.call(hash, i)) {
-            dataBuffer[i] = hash.charCodeAt(i);
-        }
-    }
-    let songData: DollchanSongData;
+    let songData: BytebeatSongData;
     try {
-        songData = JSON.parse(inflateRaw(dataBuffer, { to: 'string' }));
+        songData = BytebeatLinkToSongData(link);
     } catch (error) {
         if (error instanceof Error)
             return await interaction.reply({
@@ -148,7 +139,6 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
             ephemeral: true
         })
     }
-    let msg: InteractionResponse<boolean> | null = null;
     songData.sampleRate ??= 8000;
     if (duration * songData.sampleRate > config.audio.sampleLimit) return await interaction.reply({
         embeds: [
@@ -161,7 +151,19 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
     });
     await interaction.deferReply()
     const renderStartTime = Date.now();
-    const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat : songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat : songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat : bytebeatModes.Bytebeat, D: duration, code: songData.code, T: config.audio.maximumProcessingTime } });
+    const worker = new Worker('./rendererWorker.js', { workerData: {
+        SR: songData.sampleRate,
+
+        M:  songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat :
+            songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat :
+            songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat :
+                                                 bytebeatModes.Bytebeat,
+
+        D: duration,
+        code: songData.code,
+        N: `${undefined??"render"}-${uuidv4()}.wav`,
+        T: config.audio.maximumProcessingTime
+    } });
     prep(worker, async (data: {finished: renderOutputType}) => {
         const { error, file: wavFile, truncated } = data.finished;
         const renderEndTime = Date.now();
@@ -232,16 +234,9 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
 
 export async function renderCodeWrapperMessage(message: Message, link: string): Promise<void> {
     try {
-        const hash = _atob(link.slice(link.indexOf('#v3b64') + 6));
-        const dataBuffer = new Uint8Array(hash.length);
-        for (let i = 0; i < hash.length; i++) {
-            if (Object.prototype.hasOwnProperty.call(hash, i)) {
-                dataBuffer[i] = hash.charCodeAt(i);
-            }
-        }
         let songData;
         try {
-            songData = JSON.parse(inflateRaw(dataBuffer, { to: 'string' }));
+            songData = BytebeatLinkToSongData(link);
         } catch (error) {
             await message.react("\u274C");
             if (error instanceof Error)
@@ -278,7 +273,19 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
             }
         }
         const duration = Math.min(config.audio.sampleLimit / songData.sampleRate, config.audio.defaultSeconds);
-        const worker = new Worker('./rendererWorker.js', { workerData: { SR: songData.sampleRate, M: songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat : songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat : songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat : bytebeatModes.Bytebeat, D: duration, code: songData.code, T: config.audio.maximumProcessingTime } });
+        const worker = new Worker('./rendererWorker.js', { workerData: {
+            SR: songData.sampleRate,
+    
+            M:  songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat :
+                songData.mode == "Floatbeat" ? bytebeatModes.Floatbeat :
+                songData.mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat :
+                                                     bytebeatModes.Bytebeat,
+    
+            D: duration,
+            code: songData.code,
+            N: `message-${uuidv4()}.wav`,
+            T: config.audio.maximumProcessingTime
+        } });
         worker.on('messageerror', (e) => {
             console.error(e);
         });

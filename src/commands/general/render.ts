@@ -16,8 +16,10 @@
 
 //     Email contact is at creset200@gmail.com
 
+export {};
+
 import { renderCodeWrapperInteraction } from '../../generateRender.js';
-import { renderbotConfig } from '../../config.js';
+import { renderbotConfig } from '../../import/config.js';
 
 export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody = {
     name: 'render',
@@ -27,7 +29,7 @@ export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody =
             type: 3,
             required: true,
             name: "link",
-            description: "dollChan bytebeat player link"
+            description: "Bytebeat player link"
         },
         {
             type: 10,

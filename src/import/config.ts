@@ -1,3 +1,5 @@
+export {};
+
 export type configType = {
     token: string;
     disabledChannels: string[];
@@ -18,6 +20,6 @@ export type configType = {
         extra: { [key: string]: any[] }
     }
 };
-import configData from '../config.json' with { type: 'json' };
+
+import configData from '../../config.json' with { type: 'json' };
 export const renderbotConfig: configType = configData;
-export const bytebeatPlayerLinkDetectionRegexp = /https:\/\/dollchan\.net\/bytebeat\/?(\/index\.html)?#v3b64[^\)\r\n]+?(?=$|\)| )/;

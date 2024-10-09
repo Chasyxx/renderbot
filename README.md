@@ -14,7 +14,7 @@ Renderbot is as said above. The main purposes are:
 ### Configuration
 1. Rename `config.json.template` to `config.json`.
 2. Edit `config.json` and `src/config.ts` as needed. See configuration options below.
-3. Sync commands to Discord: `pushd target && node target/deployCommands.mjs && popd`
+3. Sync commands to Discord: `npm run cmd`
 
 ### Configuration options
 These options **do not affect the CLI.** They only affect how the bot functionaly operates.

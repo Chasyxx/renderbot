@@ -105,7 +105,7 @@ if (process.argv.length != 5) {
     if (process.exitCode != 1) {
         console.log(`${Modes[mode]} at ${sampleRate}Hz stereo ${stereo} for ${seconds} seconds`);
         readFile(inFile,{ encoding: 'utf8' }).then(data=>{
-            const result = renderCode(sampleRate, mode, data, seconds, stereo, false, 1, outFile, 0);
+            const result = renderCode(sampleRate, mode, data, outFile, seconds, stereo, false, 1, 0);
             if(result.error != null) {
                 console.error(`Couldn't make the render, the function returned "${result.error}"`);
             } else {

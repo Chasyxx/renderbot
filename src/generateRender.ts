@@ -18,11 +18,11 @@
 
 export {};
 
-import { readFileSync, unlinkSync } from 'fs';
-import { unlink } from 'fs/promises';
+import { readFileSync, unlinkSync } from 'node:fs';
+import { unlink } from 'node:fs/promises';
 import { AnySelectMenuInteraction, AttachmentBuilder, DiscordAPIError, EmbedBuilder, ModalSubmitInteraction } from 'discord.js';
 import { CommandInteraction, ButtonInteraction, InteractionResponse, Message } from 'discord.js';
-import { Worker } from 'worker_threads';
+import { Worker } from 'node:worker_threads';
 import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.js';
 import { renderbotConfig as config } from './import/config.js';
 import { BytebeatLinkToSongData, bytebeatPlayerLinkDetectionRegexp, BytebeatSongData } from './import/bytebeatplayer.js';
@@ -30,14 +30,6 @@ import ffmpeg from 'fluent-ffmpeg'
 import { v4 as uuidv4 } from 'uuid';
 
 type DiscordJSInteraction = CommandInteraction | ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction
-
-function _btoa($: string): string {
-    return Buffer.from($, 'binary').toString('base64');
-}
-
-export function _atob($: string): string {
-    return Buffer.from($, 'base64').toString('binary');
-}
 
 function prep(worker: Worker, fin: (msg: any) => void | Promise<void>) {
     worker.on('message', async (eventMessage) => {
@@ -161,7 +153,7 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
 
         D: duration,
         code: songData.code,
-        N: `${undefined??"render"}-${uuidv4()}.wav`,
+        N: `../render/render-${uuidv4()}.wav`,
         T: config.audio.maximumProcessingTime
     } });
     prep(worker, async (data: {finished: renderOutputType}) => {
@@ -181,8 +173,8 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
                         await interaction.followUp(formatResponse(
                             link,songData,config.credit.command,truncated,
                             `<@${interaction.user.id}>`,attachment
-                            ,Math.round((renderEndTime - renderStartTime) / 1000)
-                            ,Math.round((ffmpegEndTime - ffmpegStartTime) / 1000)
+                            ,Math.round((renderEndTime - renderStartTime) / 10) / 100
+                            ,Math.round((ffmpegEndTime - ffmpegStartTime) / 10) / 100
                         ));
                         unlinkSync(finalFile);
                     })
@@ -198,7 +190,7 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
                         await interaction.followUp(formatResponse(
                             link,songData,config.credit.command,truncated,
                             `<@${interaction.user.id}>`,attachment
-                            ,Math.round((renderEndTime - renderStartTime) / 1000)
+                            ,Math.round((renderEndTime - renderStartTime) / 10) / 100
                         ));
                         unlinkSync(wavFile);
                     })
@@ -214,7 +206,7 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
                 await interaction.followUp(formatResponse(
                     link,songData,config.credit.command,truncated,
                     `<@${interaction.user.id}>`,attachment
-                    ,Math.round((renderEndTime - renderStartTime) / 1000)
+                    ,Math.round((renderEndTime - renderStartTime) / 10) / 100
                 ));
                 unlinkSync(wavFile);
             }
@@ -283,7 +275,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
     
             D: duration,
             code: songData.code,
-            N: `message-${uuidv4()}.wav`,
+            N: `../render/message-${uuidv4()}.wav`,
             T: config.audio.maximumProcessingTime
         } });
         worker.on('messageerror', (e) => {
@@ -308,8 +300,8 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                             await message.reply(formatResponse(
                                 link,songData,config.credit.command,truncated,
                                 `<@${message.member?.id}>`,attachment
-                                ,Math.round((renderEndTime - renderStartTime) / 1000)
-                                ,Math.round((ffmpegEndTime - ffmpegStartTime) / 1000)
+                                ,Math.round((renderEndTime - renderStartTime) / 10) / 100
+                                ,Math.round((ffmpegEndTime - ffmpegStartTime) / 10) / 100
                             ));
                             unlinkSync(finalFile);
                         })
@@ -326,7 +318,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                             await message.reply(formatResponse(
                                 link,songData,config.credit.command,truncated,
                                 `<@${message.member?.id}>`,attachment
-                                ,Math.round((renderEndTime - renderStartTime) / 1000)
+                                ,Math.round((renderEndTime - renderStartTime) / 10) / 100
                             ));
                             unlinkSync(wavFile);
                         })
@@ -343,7 +335,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                     await message.reply(formatResponse(
                         link,songData,config.credit.command,truncated,
                         `<@${message.member?.id}>`,attachment
-                        ,Math.round((renderEndTime - renderStartTime) / 1000)
+                        ,Math.round((renderEndTime - renderStartTime) / 10) / 100
                     ));
                     unlinkSync(wavFile);
                 }

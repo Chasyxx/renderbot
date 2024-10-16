@@ -17,6 +17,7 @@
 //     Email contact is at creset200@gmail.com
 
 import { readdir } from 'node:fs/promises';
+import { mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, Collection, Events, GatewayIntentBits } from 'discord.js';
@@ -92,5 +93,7 @@ djsClient.on(Events.InteractionCreate, async (interaction) => {
 djsClient.once(Events.ClientReady, () => {
     console.log('Ready! (' + djsClient.user!.tag + ')');
 });
+
+if(!existsSync("../render/")) mkdirSync("../render/");
 
 djsClient.login(config.token);

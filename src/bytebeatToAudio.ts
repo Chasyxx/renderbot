@@ -20,6 +20,7 @@ export {};
 
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
+import { Buffer } from 'node:buffer';
 const chasyxxPlayerAdditions = {
     /*bit*/        "bitC": function (x: number, y: number, z: number) { return x & y ? z : 0 },
     /*bit reverse*/"br": function (x: number, size: number = 8) {

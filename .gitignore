@@ -1,5 +1,6 @@
 node_modules/
 config.json
+render/
 target/*
 index.mjs.old
 package-lock.json

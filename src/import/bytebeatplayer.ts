@@ -1,6 +1,7 @@
 export {};
 
 import { inflateRaw } from 'pako';
+import { Buffer } from 'node:buffer';
 
 export const bytebeatPlayerLinkDetectionRegexp = /https:\/\/dollchan\.net\/bytebeat\/?(\/index\.html)?#v3b64[^\)\r\n]+?(?=$|\)| )/;
 

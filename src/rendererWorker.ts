@@ -74,8 +74,8 @@ try {
     workerData.T
   );
 } catch (e) {
-  if (e instanceof Error) x = { error: e.message ?? e, file: null };
-  else x = { error: e, file: null };
+  if (e instanceof Error) x = { error: e.message ?? e, file: null, truncated: null };
+  else x = { error: e, file: null, truncated: null };
 }
 
 parentPort!.postMessage({ finished: x });

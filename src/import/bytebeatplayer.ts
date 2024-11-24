@@ -1,18 +1,16 @@
 export {};
 
 import { inflateRaw } from 'pako';
-import { Buffer } from 'node:buffer';
+import { URL } from 'node:url';
 
 export const bytebeatPlayerLinkDetectionRegexp = /https:\/\/dollchan\.net\/bytebeat\/?(\/index\.html)?#(v3b6)??4[^\)\r\n]+?(?=$|\)| )/;
 
+export type BytebeatMode = "Bytebeat" | "Signed Bytebeat" | "Floatbeat" | "Funcbeat";
+
 export type BytebeatSongData = {
     sampleRate: number,
-    mode: "Bytebeat" | "Signed Bytebeat" | "Floatbeat" | "Funcbeat",
+    mode: BytebeatMode,
     code: string
-}
-
-export function _atob($: string): string {
-    return Buffer.from($, 'base64').toString('binary');
 }
 
 export class RenderBotInvalidLinkError extends Error {};
@@ -22,12 +20,27 @@ export function BytebeatLinkToSongData(link: string): BytebeatSongData {
         throw new RenderBotInvalidLinkError("Invalid link");
     }
 
-    const hash = Buffer.from(link.slice(link.indexOf('#v3b64') + 6), 'base64').toString('binary');
-    const dataBuffer = new Uint8Array(hash.length);
-    for (let i = 0; i < hash.length; i++) {
-        if (Object.prototype.hasOwnProperty.call(hash, i)) {
-            dataBuffer[i] = hash.charCodeAt(i);
+    const hash = new URL(link).hash.replace(/^#/,'');
+    if(hash.startsWith('v3b64')) {
+        const d1 = inflateRaw(Uint8Array.from(atob(hash.substring(6)), x => x.charCodeAt(0)), { to: 'string' });
+        let d: { sampleRate: number, mode: BytebeatMode, code: string, formula?: string } = {code: '', mode: 'Bytebeat', sampleRate: 8000};
+        if(d1.startsWith('{')) {
+            d = JSON.parse(d1);
+            if(d.formula) {
+                d.code = d.formula;
+            }
+        } else {
+            d = { code: d1, sampleRate: 8000, mode: 'Bytebeat' };
         }
-    }
-    return JSON.parse(inflateRaw(dataBuffer, { to: 'string' }));
+        return d;
+    } else if (hash.startsWith('4')) {
+        const dataArr = Uint8Array.from(atob(hash.slice(1)), x => x.charCodeAt(0));
+        let mode: BytebeatMode = 'Bytebeat';
+        if(dataArr[0] == 2) mode = 'Floatbeat';
+        else if(dataArr[0] == 3) mode = 'Funcbeat'
+        else if(dataArr[0] == 1) mode = 'Signed Bytebeat';
+        return { mode,
+        sampleRate: new DataView(dataArr.buffer).getFloat32(1, true),
+        code: inflateRaw(new Uint8Array(dataArr.buffer, 5), { to: 'string' }) }
+    } else throw new RenderBotInvalidLinkError("Invalid link");
 }

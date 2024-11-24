@@ -23,15 +23,15 @@ import { unlink } from 'node:fs/promises';
 import { AnySelectMenuInteraction, AttachmentBuilder, DiscordAPIError, EmbedBuilder, ModalSubmitInteraction } from 'discord.js';
 import { CommandInteraction, ButtonInteraction, InteractionResponse, Message } from 'discord.js';
 import { Worker } from 'node:worker_threads';
-import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.js';
-import { renderbotConfig as config } from './import/config.js';
-import { BytebeatLinkToSongData, bytebeatPlayerLinkDetectionRegexp, BytebeatSongData } from './import/bytebeatplayer.js';
+import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.ts';
+import { renderbotConfig as config } from './import/config.ts';
+import { BytebeatLinkToSongData, bytebeatPlayerLinkDetectionRegexp, BytebeatSongData } from './import/bytebeatplayer.ts';
 import ffmpeg from 'fluent-ffmpeg'
 import { v4 as uuidv4 } from 'uuid';
 
 type DiscordJSInteraction = CommandInteraction | ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction
 
-function prep(worker: Worker, fin: (msg: any) => void | Promise<void>) {
+function prep(worker: Worker, fin: (msg: {finished: renderOutputType}) => void | Promise<void>) {
     worker.on('message', async (eventMessage) => {
 
         if (eventMessage.status) {
@@ -143,7 +143,7 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
     });
     await interaction.deferReply()
     const renderStartTime = Date.now();
-    const worker = new Worker('./rendererWorker.js', { workerData: {
+    const worker = new Worker('./rendererWorker.ts', { workerData: {
         SR: songData.sampleRate,
 
         M:  songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat :
@@ -163,7 +163,7 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
             const finalFile = wavFile.replace('.wav',config.ffmpeg.fileExtension);
             if(config.ffmpeg.enable) {
                 const ffmpegStartTime = Date.now();
-                let conversion = ffmpeg(wavFile)
+                const conversion = ffmpeg(wavFile)
                     .toFormat(config.ffmpeg.format)
                     .on('end', async()=>{
                         const ffmpegEndTime = Date.now();
@@ -255,6 +255,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
         songData.sampleRate ??= 8000;
         let msg;
         try {
+            //@ts-expect-error: send property doesn't exist on "partial channels"
             msg = await message.channel.send({ content: "Rendering started!" });
         } catch (e) {
             if (e instanceof DiscordAPIError && e.code == 50013) {
@@ -265,7 +266,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
             }
         }
         const duration = Math.min(config.audio.sampleLimit / songData.sampleRate, config.audio.defaultSeconds);
-        const worker = new Worker('./rendererWorker.js', { workerData: {
+        const worker = new Worker('./rendererWorker.ts', { workerData: {
             SR: songData.sampleRate,
     
             M:  songData.mode == "Funcbeat" ? bytebeatModes.Funcbeat :
@@ -289,7 +290,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                 const finalFile = wavFile.replace('.wav',config.ffmpeg.fileExtension);
                 if(config.ffmpeg.enable) {
                     const ffmpegStartTime = Date.now();
-                    let conversion = ffmpeg(wavFile)
+                    const conversion = ffmpeg(wavFile)
                         .toFormat(config.ffmpeg.format)
                         .on('end', async()=>{
                             const ffmpegEndTime = Date.now();
@@ -320,7 +321,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                                 `<@${message.member?.id}>`,attachment
                                 ,Math.round((renderEndTime - renderStartTime) / 10) / 100
                             ));
-                            unlinkSync(wavFile);
+                            //unlinkSync(wavFile);
                         })
                     for(const key in config.ffmpeg.extra) {
                         const value = config.ffmpeg.extra[key];

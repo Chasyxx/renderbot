@@ -1,6 +1,7 @@
-node_modules/
-config.json
-render/
-target/*
-index.mjs.old
+.vscode
+/node_modules/
+/config.json
+deno.lock
+/render/
+/target/*
 package-lock.json

@@ -17,7 +17,7 @@ export type configType = {
         location: string,
         format: string,
         fileExtension: string,
-        extra: { [key: string]: any[] }
+        extra: { [key: string]: (string | number)[] }
     }
 };
 

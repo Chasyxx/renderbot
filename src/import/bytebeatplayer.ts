@@ -3,7 +3,7 @@ export {};
 import { inflateRaw } from 'pako';
 import { Buffer } from 'node:buffer';
 
-export const bytebeatPlayerLinkDetectionRegexp = /https:\/\/dollchan\.net\/bytebeat\/?(\/index\.html)?#v3b64[^\)\r\n]+?(?=$|\)| )/;
+export const bytebeatPlayerLinkDetectionRegexp = /https:\/\/dollchan\.net\/bytebeat\/?(\/index\.html)?#(v3b6)??4[^\)\r\n]+?(?=$|\)| )/;
 
 export type BytebeatSongData = {
     sampleRate: number,

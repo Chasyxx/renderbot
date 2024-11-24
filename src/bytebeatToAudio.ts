@@ -20,7 +20,7 @@ export {};
 
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
-import { Buffer } from 'node:buffer';
+import process from "node:process";
 const chasyxxPlayerAdditions = {
     /*bit*/        "bitC": function (x: number, y: number, z: number) { return x & y ? z : 0 },
     /*bit reverse*/"br": function (x: number, size: number = 8) {
@@ -39,16 +39,20 @@ const chasyxxPlayerAdditions = {
     decorrupt sound"decrpt": function(x,y=8) {return chyx.br(chyx.br(x^chyx.br(t,y),y)-t,y)},*/
 }
 
-function write32(input: number) {
-    const buffer = Buffer.alloc(4);
-    buffer.writeUInt32LE(input, 0);
-    return buffer;
+function write32(input: number): Uint8Array {
+    // 0x12345678 -> [ 78 56 34 12 ]
+    return Uint8Array.from([ input>>0&0xFF, input>>8&0xFF, input>>16&0xFF, input>>24&0xFF ]);;
 }
 
-function write16(input: number) {
-    const buffer = Buffer.alloc(2);
-    buffer.writeUInt16LE(input, 0);
-    return buffer;
+function write16(input: number): Uint8Array {
+    // 0x1234 -> [ 34 12 ]
+    return Uint8Array.from([ input>>0&0xFF, input>>8&0xFF ]);
+}
+
+function formatUTF8(input: string): Uint8Array {
+    const dummy: Uint8Array = Uint8Array.from({length: input.length});
+    new TextEncoder().encodeInto(input,dummy);
+    return dummy;
 }
 
 /**
@@ -58,7 +62,7 @@ function write16(input: number) {
  * @param barSize 
  */
 export function progressBar(val: number, max: number, barSize: number = 20) {
-    let step = Math.max(0, Math.min(barSize, val / max * barSize));
+    const step = Math.max(0, Math.min(barSize, val / max * barSize));
     return `\x1b[0;36;7m[${'#'.repeat(step).padEnd(barSize, '.').replace(/\./g, '\x1b[0m.').replace(/\#/g, '\x1b[0;7m#')}\x1b[0;36;7m]\x1b[0m`;
 }
 
@@ -110,6 +114,8 @@ function formatByteCount(bytes: number) {
 
 export const EE = new EventEmitter();
 
+type codeValue = (keyof typeof Math | keyof typeof chasyxxPlayerAdditions | typeof Math.floor | typeof globalThis);
+
 /**
  * Get a list of functions for usage in bytebeat, including ll "Math" functions and potentially exotic functions.
  * 
@@ -117,18 +123,18 @@ export const EE = new EventEmitter();
  * @param useChasyxxPlayerAdditions Whether to use the Chasyxx player's exotic functions.
  * @returns 
  */
-export function getFunctions(useChasyxxPlayerAdditions: boolean): ({ params: string[], values: any[] }) {
+export function getFunctions(useChasyxxPlayerAdditions: boolean): ({ params: string[], values: codeValue[] }) {
     let params: string[] = [];
-    let values: any[] = [];
+    let values: codeValue[] = [];
 
     params = Object.getOwnPropertyNames(Math);
     //@ts-expect-error - These subscripts work but TS doesn't like them that much.
     values = params.map(k=>Math[k]);
 
     if (useChasyxxPlayerAdditions) {
-        let newParams = params = Object.getOwnPropertyNames(chasyxxPlayerAdditions);
+        const newParams = params = Object.getOwnPropertyNames(chasyxxPlayerAdditions);
         //@ts-expect-error - Same as above
-        let newValues = newParams.map(k=>Math[k]);
+        const newValues = newParams.map(k=>chasyxxPlayerAdditions[k]);
         params.push(...newParams);
         values.push(...newValues);
     }
@@ -178,10 +184,8 @@ export function renderCode(
     truncate: number = 300): renderOutputType {
 
     const sampleCount = Math.max(samplerate * lengthValue, samplerate);
-    // @ts-expect-error - Tnank you Discord.JS for redefining EventEmitter and
-    // breaking TypeScript!
     if (printStats == 2) EE.emit('len', sampleCount);
-    let getValues: Function;
+    let getValues: (x: number) => number;
     switch (mode) {
         case Modes.Bytebeat: default: getValues = (x: number) => (x & 255); break;
         case Modes.SignedBytebeat: getValues = (x: number) => (x + 128 & 255); break;
@@ -190,10 +194,10 @@ export function renderCode(
     }
     let codeFunc: ((t: number, SR: number) => number[] | number) = () => { return 0; };
     let truncated = false;
-    let { params, values } = getFunctions(useChasyxxPlayerAdditions);
+    const { params, values } = getFunctions(useChasyxxPlayerAdditions);
     let sampleIndex = 0;
     if (printStats == 2) {
-        // @ts-expect-error - D.JS shenannigains
+        
         EE.emit('compile', codeString.length);
     } else if (printStats == 1) {
         console.log(`Compiling a code of length ${codeString.length}`);
@@ -203,7 +207,7 @@ export function renderCode(
         if (mode == Modes.Funcbeat) {
             const out = new Function(...params, codeString).bind(globalThis, ...values);
             if (printStats == 2) {
-                // @ts-expect-error - D.JS shenannigains
+                
                 EE.emit('compileFuncbeat');
             } else if (printStats == 1) {
                 console.log(`Funcbeat sub-compilation...`);
@@ -221,9 +225,9 @@ export function renderCode(
             codeFunc = new Function(...params, `t`, `return 0,\n${codeString || 0};`).bind(globalThis, ...values);
         }
         if (printStats == 2) {
-            // @ts-expect-error - D.JS shenannigains
+            
             EE.emit('prep');
-            // @ts-expect-error - D.JS shenannigains
+            
             EE.emit('index', 0);
         } else if (printStats == 1) {
             console.timeEnd('Compilation');
@@ -238,7 +242,7 @@ export function renderCode(
                     stereo = false;
                 }
             }
-        } catch (error) {
+        } catch {
             if (stereo == null) stereo = false;
         }
     } catch (error) {
@@ -250,8 +254,8 @@ export function renderCode(
             return { error: "Compilation error: " + String(error), file: null, truncated: null };
         }
     }
-    let buffer: Buffer = Buffer.alloc(sampleCount * (stereo ? 2 : 1));
-    let lastValue: number[] = [0, 0];
+    const buffer: Uint8Array = Uint8Array.from({length: 44 + (sampleCount * (stereo ? 2 : 1))});
+    const lastValue: number[] = [0, 0];
     const startTime = Date.now();
     let lastTime = startTime;
     if(printStats==1) console.time("Rendering");
@@ -264,7 +268,7 @@ export function renderCode(
             }
             lastTime = time;
             if (printStats == 2) {
-                // @ts-expect-error - D.JS shenannigains
+                
                 EE.emit('index', sampleIndex);
             } else if (printStats == 1) {
                 console.log(`\x1b[1A${progressBar(sampleIndex, sampleCount, process.stdout.columns - String(sampleIndex).length - String(sampleCount).length - 7)} ${sampleIndex} / ${sampleCount}`);
@@ -273,17 +277,19 @@ export function renderCode(
         try {
             const out = codeFunc(mode == Modes.Funcbeat ? sampleIndex / samplerate : sampleIndex, samplerate);
             if (stereo) {
+                const bufferIndex = sampleIndex * 2 + 44;
                 if (Array.isArray(out)) {
                     if (!isNaN(out[0] ?? NaN)) lastValue[0] = getValues(out[0]) & 255;
                     if (!isNaN(out[1] ?? NaN)) lastValue[1] = getValues(out[1]) & 255;
-                    buffer[sampleIndex * 2] = lastValue[0];
-                    buffer[sampleIndex * 2 + 1] = lastValue[1];
+                    buffer[bufferIndex] = lastValue[0];
+                    buffer[bufferIndex + 1] = lastValue[1];
                 } else {
                     // Copy to both signals
                     if (!isNaN(out ?? NaN)) lastValue[0] = lastValue[1] = getValues(out) & 255;
-                    buffer[sampleIndex * 2] = buffer[sampleIndex * 2 + 1] = lastValue[0];
+                    buffer[bufferIndex] = buffer[bufferIndex + 1] = lastValue[0];
                 }
             } else {
+                const bufferIndex = sampleIndex + 44;
                 if (Array.isArray(out)) {
                     // Downmix to mono 
                     let channels: number = 0;
@@ -296,18 +302,18 @@ export function renderCode(
                         channels |= 2;
                     }
                     if (channels == 3) {
-                        buffer[sampleIndex] = lastValue[0] / 2 + lastValue[1] / 2 & 255;
+                        buffer[bufferIndex] = lastValue[0] / 2 + lastValue[1] / 2 & 255;
                     } else if (channels == 2) {
-                        buffer[sampleIndex] = lastValue[1];
+                        buffer[bufferIndex] = lastValue[1];
                     } else {
-                        buffer[sampleIndex] = lastValue[0];
+                        buffer[bufferIndex] = lastValue[0];
                     }
                 } else {
                     if (!isNaN(out ?? NaN)) lastValue[0] = lastValue[1] = getValues(out) & 255;
-                    buffer[sampleIndex] = lastValue[0];
+                    buffer[bufferIndex] = lastValue[0];
                 }
             }
-        } catch { }
+        } catch { /* TODO: cli would print an error here */ }
     }
     if (printStats == 1) {
         console.log(`\x1b[1A${progressBar(1, 1, process.stdout.columns - String(sampleIndex).length * 2 - 7)} ${sampleIndex} / ${sampleIndex}`);
@@ -317,42 +323,36 @@ export function renderCode(
     const endValue = buffer[endIndex];
     if(!stereo)
         while (buffer[endIndex] == endValue && endIndex > samplerate) --endIndex;
-    const header = Buffer.concat([
-        Buffer.from('RIFF', 'ascii'),           // Rescource Interchange File Format
-        write32(buffer.length + 36),            // filesize - 8
-        Buffer.from('WAVEfmt ', 'ascii'),       // .wav file, begin formatting info
-        write32(16),                            // length of formatting info
-        write16(1),                             // Marker for PCM data
-        write16(stereo ? 2 : 1),                // Channel No.
-        write32(samplerate),                    // Sample rate
-        write32(samplerate * (stereo ? 2 : 1)), // Byte rate: (Sample rate * Number of channels * Bits per sample) / 8
-        write16(stereo ? 2 : 1),                // Bytes per sample: (Bits per sample * Number of channels) / 8    
-        write16(8),                             // bits per sample
-        Buffer.from('data', 'ascii'),           // Begin data block
-        write32(buffer.length),                 // How long is this block?
-    ]);
 
-    const final = Buffer.concat([header, buffer.subarray(0, endIndex + 1)]);
+    buffer.set(formatUTF8('RIFF'),0);                      // RIFF header
+    buffer.set(write32(buffer.length - 8),4);              // chunk length
+    buffer.set(formatUTF8('WAVEfmt '),8);                  // chunk type, format info
+    buffer.set(write32(16),16);                            // format length
+    buffer.set(write16(1),20);                             // PCM marker
+    buffer.set(write16(stereo ? 2 : 1),22);                // channel count
+    buffer.set(write32(samplerate),24);                    // sample rate
+    buffer.set(write32(samplerate * (stereo ? 2 : 1)),28); // samplerate*channels*bitdepth/8
+    buffer.set(write16(stereo ? 2 : 1),32);                // channels*bitdepth/8
+    buffer.set(write16(8),34);                             // bit depth
+    buffer.set(formatUTF8('data'),36);                     // data chunk
+    buffer.set(write32(buffer.length - 44),40);            // chunk length
+
     const outputFile = filename;
 
-    function getHeaderString(header: Buffer): string {
-        return header.toString('hex')
-        .replace(/(\w\w)/g, '$1-')
-        .replace(/(\w\w-\w\w-\w\w-\w\w-)/g, '$1!')
-        .replace(/[-!]/g, ' ')
-    }
+    const headerString: string = 
+    `RIFF-${(buffer.length - 8).toString(16).padStart(8,'0')}-WAVEfmt-${stereo?2:1}ch-${samplerate.toString(16).padStart(8,'0')}Hz-${(samplerate*(stereo?2:1)).toString(16).padStart(8,'0')}Bps-${stereo?2:1}ba-data-${(buffer.length - 8).toString(16).padStart(8,'0')}`;
 
     if (printStats == 2) {
         if(!truncated)
-            // @ts-expect-error - D.JS shenannigains
+            
             EE.emit('index', sampleCount);
-        // @ts-expect-error - D.JS shenannigains
-        EE.emit('done', getHeaderString(header), outputFile, formatByteCount(final.length));
+        
+        EE.emit('done', headerString, outputFile, formatByteCount(buffer.length));
     } else if (printStats == 1) {
-        console.log(`HEADER ${getHeaderString(header)}`);
-        console.log(`FILE ${outputFile} SIZE ${formatByteCount(final.length)}`);
+        console.log(`HEADER ${headerString}`);
+        console.log(`FILE ${outputFile} SIZE ${formatByteCount(buffer.length)}`);
     }
 
-    fs.writeFileSync(outputFile, final);
+    fs.writeFileSync(outputFile, buffer);
     return { error: null, file: outputFile, truncated };
 }

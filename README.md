@@ -42,6 +42,6 @@ Using the CLI renderer is done through `npm run cli`. Note that relative filepat
 ### Deno
 I'm attempting to get the `target` directory to work with Deno 2. A full port (JSR, directly running TS etc) might be in the `deno` branch at some point soon hopefully. On this branch you'll still need to get the NPM packages and use `tsc`.
 
-Running the bot has you run `main.js`. The full command is`deno run -REW=../render/ -N=discord.com:443,gateway.discord.gg:443 --allow-run=/usr/bin/ffmpeg main.js`. Make sure to sync your FFpmeg path.
+Running the bot has you run `main.js`. The full command is `deno run -REW=../render/ -N=discord.com:443,gateway.discord.gg:443 --allow-run=/usr/bin/ffmpeg main.js`. Make sure to sync your FFmpeg path.
 
 Running the CLI has you run `cli/cli.js`. `deno run --allow-read=in.js --allow-write=out.wav cli.js` will work fine if you want to avoid the permissions prompts (though just pressing Y twice is probably fine).

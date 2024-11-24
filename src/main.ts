@@ -19,23 +19,22 @@
 import { readdir } from 'node:fs/promises';
 import { mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { Client, Collection, Events, GatewayIntentBits } from 'discord.js';
+import { Client, Collection, CommandInteraction, Events, GatewayIntentBits } from 'discord.js';
 import ffmpeg from 'fluent-ffmpeg';
-import { renderbotConfig as config } from './import/config.js';
+import { renderbotConfig as config } from './import/config.ts';
 if(config.ffmpeg.enable) ffmpeg.setFfmpegPath(config.ffmpeg.location);
-import { renderCodeWrapperInteraction, renderCodeWrapperMessage } from './generateRender.js';
-import { bytebeatPlayerLinkDetectionRegexp } from './import/bytebeatplayer.js';
+import { renderCodeWrapperMessage } from './generateRender.ts';
+import { bytebeatPlayerLinkDetectionRegexp } from './import/bytebeatplayer.ts';
 
 const djsClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
-const djsCommands: Collection<string, {data: { name: string, description: string }, execute: Function}> = new Collection();
+const djsCommands: Collection<string, {data: { name: string, description: string }, execute: (x: CommandInteraction)=> void}> = new Collection();
 
 function addCommandsfromFilesWrapper(commandsPath: string) {
     return (commandFiles: string[]) => {
         for (const file of commandFiles) {
             const filePath = join(commandsPath, file);
-            import(filePath).then(command => {
+            import('./'+filePath).then(command => {
                 if ('data' in command && 'execute' in command) {
                     djsCommands.set(command.data.name, command);
                 } else {
@@ -46,15 +45,15 @@ function addCommandsfromFilesWrapper(commandsPath: string) {
     }
 }
 
-const djsCommandsPath = fileURLToPath(new URL('commands', import.meta.url));
+const djsCommandsPath = 'commands';
 readdir(djsCommandsPath).then(djsCommandFolders => {
     for (const folder of djsCommandFolders) {
-        const commandsPath = fileURLToPath(new URL('commands/' + folder, import.meta.url));
-        readdir(commandsPath).then((files) => files.filter((file) => file.endsWith('.js') || file.endsWith('.mjs') || file.endsWith('.cjs'))).then(addCommandsfromFilesWrapper(commandsPath));
+        const commandsPath = join('commands',folder);
+        readdir(commandsPath).then((files) => files).then(addCommandsfromFilesWrapper(commandsPath));
     }
 });
 
-djsClient.on(Events.MessageCreate, async ($) => {
+djsClient.on(Events.MessageCreate, ($) => {
     if ($.author.bot) return;
     if (config.disabledChannels.includes($.channelId)) return;
     if (bytebeatPlayerLinkDetectionRegexp.test($.content)) {

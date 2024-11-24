@@ -1,5 +1,6 @@
-import { renderCode, Modes } from "../bytebeatToAudio.js";
+import { renderCode, Modes } from "../bytebeatToAudio.ts";
 import { readFile } from "node:fs/promises";
+import process from "node:process";
 
 let sampleRate: number = 8000;
 let mode: Modes = Modes.Bytebeat;

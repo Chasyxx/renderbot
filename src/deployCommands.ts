@@ -19,27 +19,24 @@
 import { REST, Routes } from 'discord.js';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs'
-import { renderbotConfig as config } from './import/config.js';
+import { renderbotConfig as config } from './import/config.ts';
 
 const commands: ({ name: string, description: string })[] = [];
-const foldersPath = fileURLToPath(new URL('commands', import.meta.url));
 console.log("Finding command folders...");
 
-readdir(foldersPath).then(async commandFolders => {
+readdir('commands').then(async commandFolders => {
     for (let i = 0; i < commandFolders.length; i++) {
         const folder = commandFolders[i];
         console.log(`${(i==commandFolders.length-1?"`-":"|-")} ${folder}`);
-        const commandsPath = join(foldersPath, folder);
+        const commandsPath = join('commands', folder);
         const commandFiles = await readdir(commandsPath);
         for (let j = 0; j < commandFiles.length; j++) {
             const file = commandFiles[j];
-            if (!file.endsWith('.js') && !file.endsWith('.mjs') && !file.endsWith('.cjs')) {
-                continue;
-            }
+            // if (!file.endsWith('.js') && !file.endsWith('.mjs') && !file.endsWith('.cjs')) {
+            //     continue;
+            // }
             console.log(`${(i==commandFolders.length-1?" ":"|")}  ${(j==commandFiles.length-1?"`-":"|-")} ${file}`);
-            const filePath = join(commandsPath, file);
+            const filePath = './'+join(commandsPath, file);
             const command = await import(filePath);
             if ('data' in command && 'execute' in command) {
                 commands.push(command.data);
@@ -53,9 +50,8 @@ readdir(foldersPath).then(async commandFolders => {
     const rest = new REST().setToken(config.token);
     try {
         console.log(`Started refreshing ${commands.length} application (/) commands.`);
-        rest.put(Routes.applicationCommands(Buffer.from(config.token.match(/^[\w\d=]+?(?=\.)/)![0],'base64').toString('binary')), { body: commands }).then(data => {
-            //@ts-expect-error
-            console.log(`Successfully reloaded ${data.length} application (/) commands.`);
+        rest.put(Routes.applicationCommands(atob(config.token.match(/^[\w\d=]+?(?=\.)/)![0])), { body: commands }).then(() => {
+            console.log(`Successfully reloaded ${commands.length} application (/) commands.`);
         });
     } catch (error) {
         console.error("@# " + error);

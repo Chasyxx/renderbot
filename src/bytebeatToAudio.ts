@@ -61,9 +61,12 @@ function formatUTF8(input: string): Uint8Array {
  * @param max Maximum
  * @param barSize 
  */
-export function progressBar(val: number, max: number, barSize: number = 20) {
+export function progressBar(val: number, max: number, barSize: number = 20, terminal: boolean = false): string {
     const step = Math.max(0, Math.min(barSize, val / max * barSize));
-    return `\x1b[0;36;7m[${'#'.repeat(step).padEnd(barSize, '.').replace(/\./g, '\x1b[0m.').replace(/\#/g, '\x1b[0;7m#')}\x1b[0;36;7m]\x1b[0m`;
+    // Print colored terminal output
+    if(terminal) return `\x1b[0;36;7m[${'#'.repeat(step).padEnd(barSize, '.').replace(/\./g, '\x1b[0m.').replace(/\#/g, '\x1b[0;7m#')}\x1b[0;36;7m]\x1b[0m`;
+    // Not using terminal, just print a basic progress bar
+    return `[${'#'.repeat(step).padEnd(barSize, '.')}]`;
 }
 
 /**
@@ -181,7 +184,7 @@ export function renderCode(
     samplerate: number, mode: Modes, codeString: string, filename: string,
     lengthValue: number = 10, stereo: boolean | null,
     useChasyxxPlayerAdditions: boolean, printStats: 0 | 1 | 2,
-    truncate: number = 300): renderOutputType {
+    truncate: number = 300, printMillis: number = 100): renderOutputType {
 
     const sampleCount = Math.max(samplerate * lengthValue, samplerate);
     if (printStats == 2) EE.emit('len', sampleCount);
@@ -231,7 +234,7 @@ export function renderCode(
             EE.emit('index', 0);
         } else if (printStats == 1) {
             console.timeEnd('Compilation');
-            console.log(`${progressBar(0, 1)} 0 / ${sampleCount}`);
+            console.log(`${progressBar(0, 1, 20, true)} 0 / ${sampleCount}`);
         }
         try {
             const out = codeFunc(0, samplerate);
@@ -261,17 +264,17 @@ export function renderCode(
     if(printStats==1) console.time("Rendering");
     for (sampleIndex = 0; sampleIndex <= sampleCount; sampleIndex++) {
         const time = Date.now();
-        if (time > (lastTime + 100)) {
-            if (truncate && (time - startTime) > (truncate * 1000)) {
-                truncated = true;
-                break;
-            }
+        if (truncate && (time - startTime) > (truncate * 1000)) {
+            truncated = true;
+            break;
+        }
+        if (time > (lastTime + printMillis)) {
             lastTime = time;
             if (printStats == 2) {
                 
                 EE.emit('index', sampleIndex);
             } else if (printStats == 1) {
-                console.log(`\x1b[1A${progressBar(sampleIndex, sampleCount, process.stdout.columns - String(sampleIndex).length - String(sampleCount).length - 7)} ${sampleIndex} / ${sampleCount}`);
+                console.log(`\x1b[1A${progressBar(sampleIndex, sampleCount, process.stdout.columns - String(sampleIndex).length - String(sampleCount).length - 7, true)} ${sampleIndex} / ${sampleCount}`);
             }
         }
         try {
@@ -316,7 +319,7 @@ export function renderCode(
         } catch { /* TODO: cli would print an error here */ }
     }
     if (printStats == 1) {
-        console.log(`\x1b[1A${progressBar(1, 1, process.stdout.columns - String(sampleIndex).length * 2 - 7)} ${sampleIndex} / ${sampleIndex}`);
+        console.log(`\x1b[1A${progressBar(1, 1, process.stdout.columns - String(sampleIndex).length * 2 - 7, true)} ${sampleIndex} / ${sampleIndex}`);
         console.timeEnd("Rendering");
     }
     let endIndex = buffer.length - 1;

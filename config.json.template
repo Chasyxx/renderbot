@@ -1,6 +1,11 @@
 {
     "token": "YOUR_BOT_TOKEN_HERE",
     "disabledChannels": [],
+    "print": {
+        "ms": 100,
+        "terminal": true,
+        "barSize": 20
+    },
     "audio": {
         "sampleLimit": 2880000,
         "defaultSeconds": 30,

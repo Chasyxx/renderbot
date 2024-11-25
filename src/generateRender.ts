@@ -20,7 +20,7 @@ export {};
 
 import { readFileSync, unlinkSync } from 'node:fs';
 import { unlink } from 'node:fs/promises';
-import { AnySelectMenuInteraction, AttachmentBuilder, DiscordAPIError, EmbedBuilder, ModalSubmitInteraction } from 'discord.js';
+import { AnySelectMenuInteraction, AttachmentBuilder, EmbedBuilder, ModalSubmitInteraction } from 'discord.js';
 import { CommandInteraction, ButtonInteraction, Message } from 'discord.js';
 import { Worker } from 'node:worker_threads';
 import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.ts';
@@ -31,13 +31,13 @@ import { v4 as uuidv4 } from 'uuid';
 
 type DiscordJSInteraction = CommandInteraction | ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction
 
-function prep(worker: Worker, fin: (msg: {finished: renderOutputType}) => void | Promise<void>) {
+function prepareWorker(worker: Worker, fin: (msg: {finished: renderOutputType}) => void | Promise<void>) {
     worker.on('message', async (eventMessage) => {
 
         if (eventMessage.status) {
             switch (eventMessage.status) {
                 case 'prep': {
-                    console.log(progressBar(0, 1, 40));
+                    if(config.print.terminal) console.log(progressBar(0, 1, config.print.barSize, config.print.terminal));
                     break;
                 }
                 case 'done': {
@@ -57,7 +57,7 @@ function prep(worker: Worker, fin: (msg: {finished: renderOutputType}) => void |
         }
 
         if (Object.hasOwnProperty.call(eventMessage,'index')) {
-            console.log('\x1b[1A%s %d / %d', progressBar(eventMessage.index, eventMessage.max, 40), eventMessage.index, eventMessage.max);
+            console.log(`${config.print.terminal?'\x1b[1A':''}%s %d / %d`, progressBar(eventMessage.index, eventMessage.max, 40, config.print.terminal), eventMessage.index, eventMessage.max);
         }
 
         if (eventMessage.finished) {
@@ -239,9 +239,8 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
         D: duration,
         code: songData.code,
         N: `../render/render-${uuidv4()}.wav`,
-        T: config.audio.maximumProcessingTime
     } });
-    prep(worker, async (data: {finished: renderOutputType}) => {
+    prepareWorker(worker, async (data: {finished: renderOutputType}) => {
         const { error, file: wavFile, truncated } = data.finished;
         const renderEndTime = Date.now();
         if (error == null) {
@@ -279,9 +278,8 @@ export async function renderCodeWrapperFile(message: Message, code: string, samp
             D: duration,
             code: code,
             N: `../render/file-${uuidv4()}.wav`,
-            T: config.audio.maximumProcessingTime
         } });
-        prep(worker, (data: {finished: renderOutputType}) => {
+        prepareWorker(worker, (data: {finished: renderOutputType}) => {
             const { error, file: wavFile, truncated } = data.finished;
             const renderEndTime = Date.now();
             if (error == null) {
@@ -330,10 +328,9 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
             M:  getMode(songData.mode),
             D: duration,
             code: songData.code,
-            N: `../render/render-${uuidv4()}.wav`,
-            T: config.audio.maximumProcessingTime
+            N: `../render/message-${uuidv4()}.wav`,
         } });
-        prep(worker, (data: {finished: renderOutputType}) => {
+        prepareWorker(worker, (data: {finished: renderOutputType}) => {
             const { error, file: wavFile, truncated } = data.finished;
             const renderEndTime = Date.now();
             if (error == null) {

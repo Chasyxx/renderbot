@@ -17,14 +17,18 @@ Renderbot is as said above. The main purposes are:
 3. Sync commands to Discord: `npm run cmd`
 
 ### Configuration options
-These options **do not affect the CLI.** They only affect how the bot functionaly operates.
+These options **do not affect the CLI.** They only affect how the bot functionality operates.
 #### config.json
 * **token**: The discord bot token. **This must be changed from the template.**
 * **disabledChannels**: A list of channel IDs where RenderBot won't automatically render or allow the render command to be used.
+* **print**: Related to progress bars.
+  * **ms**: Milliseconds between prints. Turn this up if **terminal** is disabled.
+  * **terminal**: True has a colored progress bar that stays on one line, while false has a basic progress bar that prints on a new line. False is designed for the systemd journal.
+  * **barSize**: How big the progress bar is.
 * **audio**: Various audio settings.
   * **sampleLimit**: How many samples are allowed to be rendered. For N seconds of samplerate S Hz, S*N will get you the value. The default value is 1 minute of 48kHz audio. **You should probably only go up to 9000000 to meet file size limits if you don't use the FFmpeg feature.**
   * **defaultSeconds**: The default number of seconds for the `/render` command, and for message auto-rendering, where it may get shortened to meet the sample limit if needed.
-  * **maximumProcessingTime**: The amount of seconds the bot will try to process a code. If it takes longer it'll stop there and output what it could process in that time, giving a notice it was truncated. Discord gives the bot 15 minutes to react to a deferred reply before giving an error, so it's in the range [0,900). 780 is a good max to allow for 2 minutes for FFmpeg.
+  * **maximumProcessingTime**: The amount of seconds the bot will try to process a code. If it takes longer it'll stop there and output what it could process in that time, giving a notice it was truncated. Discord gives the bot 15 minutes to react to a deferred reply before giving an error, so it's in the range (0,900). 780 is a good max to allow for 2 minutes for FFmpeg.
 * **credit**: Whehter to send a mention for the user for either a **message** or when the `/render` **command** is run. Discord already credits command usage, so it isn't needed, and setting it for message means if the message is deleted the code will still be attributed to the user, which might be better for moderation.
 * **ffmpeg**: Options for FFmpeg conversion. Mainly for file size reasons.
   * **enable**: Set this to false if you don't have FFmpeg or don't want to use it. This causes RenderBot to directly give .wav files. **If you want other file formats and have FFmpeg set this to *true.***

@@ -1,8 +1,15 @@
 export {};
 
+import configData from '../../config.json' with { type: 'json' };
+
 export type configType = {
     token: string;
     disabledChannels: string[];
+    print: {
+        ms: number,
+        terminal: boolean,
+        barSize: number
+    };
     audio: {
         sampleLimit: number,
         defaultSeconds: number,
@@ -21,5 +28,4 @@ export type configType = {
     }
 };
 
-import configData from '../../config.json' with { type: 'json' };
 export const renderbotConfig: configType = configData;

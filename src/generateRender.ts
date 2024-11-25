@@ -25,7 +25,7 @@ import { CommandInteraction, ButtonInteraction, InteractionResponse, Message } f
 import { Worker } from 'node:worker_threads';
 import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.ts';
 import { renderbotConfig as config } from './import/config.ts';
-import { BytebeatLinkToSongData, bytebeatPlayerLinkDetectionRegexp, BytebeatSongData } from './import/bytebeatplayer.ts';
+import { BytebeatLinkToSongData, bytebeatPlayerLinkDetectionRegexp, BytebeatSongData, BytebeatMode } from './import/bytebeatplayer.ts';
 import ffmpeg from 'fluent-ffmpeg'
 import { v4 as uuidv4 } from 'uuid';
 
@@ -67,7 +67,7 @@ function prep(worker: Worker, fin: (msg: {finished: renderOutputType}) => void |
 }
 
 function formatResponse(
-    link: string, songData: BytebeatSongData, credit: boolean,
+    link: string | null, songData: BytebeatSongData, credit: boolean,
     truncated: boolean, mention: string,
     attachment: AttachmentBuilder, renderTime: number, ffmpegTime?: number
     ): object {
@@ -79,7 +79,7 @@ function formatResponse(
             { name: "Render time", value: `${renderTime}s`, inline: true }
         );
         if(ffmpegTime != undefined) embed.addFields({ name: "FFMPEG time", value: `${ffmpegTime}s`, inline: true })
-        if(link.length < 2048) {
+        if(link !== null && link.length < 2048) {
             embed.setURL(link);
         }
         if(truncated) {
@@ -224,6 +224,117 @@ export async function renderCodeWrapperInteraction(interaction: DiscordJSInterac
     return;
 }
 
+export async function renderCodeWrapperFile(message: Message, code: string, sampleRate: number, mode: BytebeatMode, duration = 30): Promise<void> {
+    if (duration * sampleRate > config.audio.sampleLimit) {
+        await message.reply({
+            embeds: [
+                new EmbedBuilder()
+                .setColor(0xFF0000)
+                .setTitle(`Duration may not be greater than ${config.audio.sampleLimit} samples.`)
+                .setDescription(`The longest you can render is ${Math.floor(config.audio.sampleLimit / sampleRate)} seconds.`)
+                // .setFooter({ text: `${songData.sampleRate}Hz * ${duration}s = ${songData.sampleRate * duration} samples.` })
+            ]
+        });
+        return;
+    }
+    let renderingStarted: Message;
+    try {
+        //@ts-expect-error: send property doesn't exist on "partial channels"
+        renderingStarted = await message.channel.send({ content: "Rendering started!" });
+    } catch (e) {
+        if (e instanceof DiscordAPIError && e.code == 50013) {
+            return;
+        } else {
+            if (e instanceof Error) console.error(e.stack);
+            throw e;
+        }
+    }
+    const renderStartTime = Date.now();
+    const worker = new Worker('./rendererWorker.ts', { workerData: {
+        SR: sampleRate,
+
+        M:  mode === 'Funcbeat' ? bytebeatModes.Funcbeat :
+            mode === 'Floatbeat' ? bytebeatModes.Floatbeat :
+            mode === 'Signed Bytebeat' ? bytebeatModes.SignedBytebeat :
+                                                 bytebeatModes.Bytebeat,
+
+        D: duration,
+        code: code,
+        N: `../render/file-${uuidv4()}.wav`,
+        T: config.audio.maximumProcessingTime
+    } });
+    prep(worker, async (data: {finished: renderOutputType}) => {
+        const { error, file: wavFile, truncated } = data.finished;
+        const renderEndTime = Date.now();
+        if (error == null) {
+            const finalFile = wavFile.replace('.wav',config.ffmpeg.fileExtension);
+            if(config.ffmpeg.enable) {
+                const ffmpegStartTime = Date.now();
+                const conversion = ffmpeg(wavFile)
+                    .toFormat(config.ffmpeg.format)
+                    .on('end', async()=>{
+                        const ffmpegEndTime = Date.now();
+                        //unlinkSync(wavFile);
+                        const fileData = readFileSync(finalFile);
+                        const attachment = new AttachmentBuilder(fileData, { name: finalFile });
+                        await renderingStarted!.delete();
+                        await message.reply(formatResponse(
+                            null,{ code, mode, sampleRate },config.credit.command,truncated,
+                            `<@${message.author.id}>`,attachment
+                            ,Math.round((renderEndTime - renderStartTime) / 10) / 100
+                            ,Math.round((ffmpegEndTime - ffmpegStartTime) / 10) / 100
+                        ));
+                        //unlinkSync(finalFile);
+                    })
+                    .on('error', async(error,o,e)=>{
+                        console.warn("FFMPEG FAILED",error);
+                        console.warn("Last few lines of stdout:");
+                        console.warn(o?.split('\n').slice(-5).join('\n'))
+                        console.warn("Last few lines of stderr:");
+                        console.warn(e?.split('\n').slice(-5).join('\n'))
+                        unlink(finalFile).then(()=>{}).catch(()=>{}) // Just try to delete the file, doesn't matter if it succeeds
+                        const fileData = readFileSync(wavFile);
+                        const attachment = new AttachmentBuilder(fileData, { name: wavFile });
+                        await renderingStarted!.delete();
+                        await message.reply(formatResponse(
+                            null,{ code, mode, sampleRate },config.credit.command,truncated,
+                            `<@${message.author.id}>`,attachment
+                            ,Math.round((renderEndTime - renderStartTime) / 10) / 100
+                        ));
+                        unlinkSync(wavFile);
+                    })
+                for(const key in config.ffmpeg.extra) {
+                    const value = config.ffmpeg.extra[key];
+                    //@ts-ignore - That probably means something.
+                    conversion[key].apply(conversion,value)
+                }
+                conversion.save(finalFile)
+            } else {
+                const fileData = readFileSync(wavFile);
+                const attachment = new AttachmentBuilder(fileData, { name: wavFile });
+                await renderingStarted!.delete();
+                await message.reply(formatResponse(
+                    null,{ code, mode, sampleRate },config.credit.command,truncated,
+                    `<@${message.author.id}>`,attachment
+                    ,Math.round((renderEndTime - renderStartTime) / 10) / 100
+                ));
+                unlinkSync(wavFile);
+            }
+        } else {
+            await renderingStarted!.delete();
+            await message.reply({
+                embeds: [
+                    new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setTitle("Error while rendering")
+                    .setDescription(`\`${error}\``)
+                ]
+            })
+        }
+    });
+    return;
+}
+
 export async function renderCodeWrapperMessage(message: Message, link: string): Promise<void> {
     try {
         let songData;
@@ -253,10 +364,10 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
             return;
         }
         songData.sampleRate ??= 8000;
-        let msg;
+        let renderingStarted;
         try {
             //@ts-expect-error: send property doesn't exist on "partial channels"
-            msg = await message.channel.send({ content: "Rendering started!" });
+            renderingStarted = await message.channel.send({ content: "Rendering started!" });
         } catch (e) {
             if (e instanceof DiscordAPIError && e.code == 50013) {
                 return;
@@ -297,7 +408,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                             unlinkSync(wavFile);
                             const fileData = readFileSync(finalFile);
                             const attachment = new AttachmentBuilder(fileData, { name: finalFile });
-                            await msg!.delete();
+                            await renderingStarted!.delete();
                             await message.reply(formatResponse(
                                 link,songData,config.credit.command,truncated,
                                 `<@${message.member?.id}>`,attachment
@@ -315,13 +426,13 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                             unlink(finalFile).then(()=>{}).catch(()=>{}) // Just try to delete the file, doesn't matter if it succeeds
                             const fileData = readFileSync(wavFile);
                             const attachment = new AttachmentBuilder(fileData, { name: wavFile });
-                            await msg!.delete();
+                            await renderingStarted!.delete();
                             await message.reply(formatResponse(
                                 link,songData,config.credit.command,truncated,
                                 `<@${message.member?.id}>`,attachment
                                 ,Math.round((renderEndTime - renderStartTime) / 10) / 100
                             ));
-                            //unlinkSync(wavFile);
+                            unlinkSync(wavFile);
                         })
                     for(const key in config.ffmpeg.extra) {
                         const value = config.ffmpeg.extra[key];
@@ -332,7 +443,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                 } else {
                     const fileData = readFileSync(wavFile);
                     const attachment = new AttachmentBuilder(fileData, { name: wavFile });
-                    await msg!.delete();
+                    await renderingStarted!.delete();
                     await message.reply(formatResponse(
                         link,songData,config.credit.command,truncated,
                         `<@${message.member?.id}>`,attachment
@@ -342,7 +453,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                 }
             } else {
                 await message.react("\u2755");
-                await msg.delete();
+                await renderingStarted.delete();
                 await message.reply({
                     embeds: [
                         new EmbedBuilder()

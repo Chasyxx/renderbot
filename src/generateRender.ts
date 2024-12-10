@@ -22,9 +22,9 @@ import { readFileSync, unlinkSync } from 'node:fs';
 import { unlink } from 'node:fs/promises';
 import { AttachmentBuilder, EmbedBuilder, CommandInteraction, Message } from 'discord.js';
 import { Worker } from 'node:worker_threads';
-import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.ts';
-import { renderbotConfig as config } from './import/config.ts';
-import { BytebeatLinkToSongData, bytebeatPlayerLinkDetectionRegexp, BytebeatSongData, BytebeatMode } from './import/bytebeatplayer.ts';
+import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.js';
+import { renderbotConfig as config } from './import/config.js';
+import { BytebeatLinkToSongData, bytebeatPlayerLinkDetectionRegexp, BytebeatSongData, BytebeatMode } from './import/bytebeatplayer.js';
 import ffmpeg from 'fluent-ffmpeg'
 import { v4 as uuidv4 } from 'uuid';
 
@@ -230,7 +230,7 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
     if(!(await checkSampleLength(duration,songData.sampleRate,interaction))) return;
     await interaction.deferReply();
     const renderStartTime = Date.now();
-    const worker = new Worker('./rendererWorker.ts', { workerData: {
+    const worker = new Worker('./rendererWorker.js', { workerData: {
         SR: songData.sampleRate,
         M:  getMode(songData.mode),
         D: duration,
@@ -269,7 +269,7 @@ export async function renderCodeWrapperFile(message: Message, code: string, samp
             return;
         }
         const renderStartTime = Date.now();
-        const worker = new Worker('./rendererWorker.ts', { workerData: {
+        const worker = new Worker('./rendererWorker.js', { workerData: {
             SR: sampleRate,
             M: getMode(mode),
             D: duration,
@@ -320,7 +320,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
             return;
         }
         const renderStartTime = Date.now();
-        const worker = new Worker('./rendererWorker.ts', { workerData: {
+        const worker = new Worker('./rendererWorker.js', { workerData: {
             SR: songData.sampleRate,
             M:  getMode(songData.mode),
             D: duration,

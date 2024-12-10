@@ -19,7 +19,7 @@
 import { REST, Routes } from 'discord.js';
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { renderbotConfig as config } from './import/config.ts';
+import { renderbotConfig as config } from './import/config.js';
 
 const commands: ({ name: string, description: string })[] = [];
 console.log("Finding command folders...");

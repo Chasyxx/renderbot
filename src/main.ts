@@ -21,10 +21,10 @@ import { mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Client, Collection, CommandInteraction, EmbedBuilder, Events, GatewayIntentBits } from 'discord.js';
 import ffmpeg from 'fluent-ffmpeg';
-import { renderbotConfig as config } from './import/config.ts';
+import { renderbotConfig as config } from './import/config.js';
 if(config.ffmpeg.enable) ffmpeg.setFfmpegPath(config.ffmpeg.location);
-import { renderCodeWrapperFile, renderCodeWrapperMessage } from './generateRender.ts';
-import { BytebeatMode, bytebeatPlayerLinkDetectionRegexp } from './import/bytebeatplayer.ts';
+import { renderCodeWrapperFile, renderCodeWrapperMessage } from './generateRender.js';
+import { BytebeatMode, bytebeatPlayerLinkDetectionRegexp } from './import/bytebeatplayer.js';
 
 const djsClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
@@ -34,7 +34,7 @@ function addCommandsfromFilesWrapper(commandsPath: string) {
     return (commandFiles: string[]) => {
         for (const file of commandFiles) {
             const filePath = join(commandsPath, file);
-            import('./'+filePath).then(command => {
+            if(!file.endsWith('.ts')) import('./'+filePath).then(command => {
                 if ('data' in command && 'execute' in command) {
                     djsCommands.set(command.data.name, command);
                 } else {
@@ -48,7 +48,7 @@ function addCommandsfromFilesWrapper(commandsPath: string) {
 const djsCommandsPath = 'commands';
 readdir(djsCommandsPath).then(djsCommandFolders => {
     for (const folder of djsCommandFolders) {
-        const commandsPath = join('commands',folder);
+        const commandsPath = join(djsCommandsPath,folder);
         readdir(commandsPath).then((files) => files).then(addCommandsfromFilesWrapper(commandsPath));
     }
 });

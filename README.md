@@ -40,8 +40,8 @@ These options **do not affect the CLI.** They only affect how the bot functional
   * **`export const bytebeatPlayerLinkDetectionRegexp`**: This regular expression by default detects [DollChan bytebeat player](https://dollchan.net/bytebeat/) links. You can change it easily to detect any other player with `v3b64` syntax, **anything else may require extracting the link differently in `generateRender.js`.** Always check the bytebeat player you want link compatibility for.
 
 ## Execution
-Executing the bot should be as easy as `npm run bot`.
-Using the CLI renderer is done through `npm run cli`. Note that relative filepaths go from `target/cli` instead of where you run the command.
+To execute the bot, use `deno run --allow-env --allow-net --allow-read=../render/ --allow-read=commands --allow-write=../render/ --allow-run=/usr/bin/ffmpeg main.ts` inside of `src`. I wished to specifically use `--allow-net=discord.com:443,gateway.discord.gg:443,cdn.discordapp.com:443`, but the bot eventually contacts region-specific servers, so a generic `--allow-net` is probably needed. And at some point generic env access is needed too.
+To use the CLI, go to `src/cli` and run `cli.ts`.
 
-### Deno
-This branch is designed to work with Node.JS. For Deno use the "deno" branch.
+### Node.JS
+This branch is designed to work with Deno. For Deno use the "main" branch.

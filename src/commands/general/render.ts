@@ -18,8 +18,8 @@
 
 export {};
 
-import { renderCodeWrapperInteraction } from '../../generateRender.js';
-import { renderbotConfig } from '../../import/config.js';
+import { renderCodeWrapperInteraction } from '../../generateRender.ts';
+import { renderbotConfig } from '../../import/config.ts';
 
 export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody = {
     name: 'render',

@@ -18,15 +18,13 @@
 
 export {};
 
-import { readFileSync, unlinkSync } from 'node:fs';
-import { unlink } from 'node:fs/promises';
 import { AttachmentBuilder, EmbedBuilder, CommandInteraction, Message } from 'discord.js';
+import { Buffer } from 'node:buffer';
 import { Worker } from 'node:worker_threads';
-import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.js';
-import { renderbotConfig as config } from './import/config.js';
-import { BytebeatLinkToSongData, bytebeatPlayerLinkDetectionRegexp, BytebeatSongData, BytebeatMode } from './import/bytebeatplayer.js';
+import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.ts';
+import { renderbotConfig as config } from './import/config.ts';
+import { BytebeatLinkToSongData, bytebeatPlayerLinkDetectionRegexp, BytebeatSongData, BytebeatMode } from './import/bytebeatplayer.ts';
 import ffmpeg from 'fluent-ffmpeg'
-import { v4 as uuidv4 } from 'uuid';
 
 function prepareWorker(worker: Worker, fin: (msg: {finished: renderOutputType}) => void | Promise<void>) {
     worker.on('message', async (eventMessage) => {
@@ -158,8 +156,8 @@ async function checkSampleLength(seconds: number, samplerate: number, respondee:
 
 async function sendFile(respondee: Message | CommandInteraction, file: string, link: string | null, songData: BytebeatSongData,
     truncated: boolean, duration: number, renderTimes: [number, number], ffmpegTimes?: [number, number]) {
-    const fileData = readFileSync(file);
-    const attachment = new AttachmentBuilder(fileData, { name: file });
+    const fileData = Deno.readFileSync(file);
+    const attachment = new AttachmentBuilder(Buffer.from(fileData), { name: file });
     const renderTime = Math.round((renderTimes[1] - renderTimes[0]) / 10) / 100;
     const ffmpegTime = ffmpegTimes===undefined?undefined:Math.round((ffmpegTimes[1] - ffmpegTimes[0]) / 10) / 100;
     if (respondee instanceof CommandInteraction) {
@@ -193,15 +191,15 @@ async function sendRender(wavFile: string, respondee: Message | CommandInteracti
             .toFormat(config.ffmpeg.format)
             .on('end', async () => {
                 const ffmpegEndTime = Date.now();
-                unlinkSync(wavFile);
+                Deno.removeSync(wavFile);
                 await sendFile(respondee, finalFile, link, songData, truncated, duration, [renderStartTime, renderEndTime], [ffmpegStartTime, ffmpegEndTime]);
-                unlinkSync(finalFile);
+                Deno.removeSync(finalFile);
             })
             .on('error', async (error, o, e) => {
-                unlink(finalFile).then(() => { }).catch(() => { }); // Just try to delete the file, doesn't matter if it succeeds
+                Deno.remove(finalFile).then(() => { }).catch(() => { }); // Just try to delete the file, doesn't matter if it succeeds
                 printFfmpegError(error, o ?? '(null)', e ?? '(null)')
                 await sendFile(respondee, wavFile, link, songData, truncated, duration, [renderStartTime, renderEndTime]);
-                unlinkSync(wavFile);
+                Deno.removeSync(wavFile);
             })
         for (const key in config.ffmpeg.extra) {
             const value = config.ffmpeg.extra[key];
@@ -211,7 +209,7 @@ async function sendRender(wavFile: string, respondee: Message | CommandInteracti
         conversion.save(finalFile);
     } else {
         await sendFile(respondee, wavFile, link, songData, truncated, duration, [renderStartTime, renderEndTime]);
-        unlinkSync(wavFile);
+        Deno.removeSync(wavFile);
     }
 }
 
@@ -230,12 +228,12 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
     if(!(await checkSampleLength(duration,songData.sampleRate,interaction))) return;
     await interaction.deferReply();
     const renderStartTime = Date.now();
-    const worker = new Worker('./rendererWorker.js', { workerData: {
+    const worker = new Worker('./rendererWorker.ts', { workerData: {
         SR: songData.sampleRate,
         M:  getMode(songData.mode),
         D: duration,
         code: songData.code,
-        N: `../render/render-${uuidv4()}.wav`,
+        N: `../render/render-${crypto.randomUUID()}.wav`,
     } });
     prepareWorker(worker, async (data: {finished: renderOutputType}) => {
         const { error, file: wavFile, truncated } = data.finished;
@@ -269,12 +267,12 @@ export async function renderCodeWrapperFile(message: Message, code: string, samp
             return;
         }
         const renderStartTime = Date.now();
-        const worker = new Worker('./rendererWorker.js', { workerData: {
+        const worker = new Worker('./rendererWorker.ts', { workerData: {
             SR: sampleRate,
             M: getMode(mode),
             D: duration,
             code: code,
-            N: `../render/file-${uuidv4()}.wav`,
+            N: `../render/file-${crypto.randomUUID()}.wav`,
         } });
         prepareWorker(worker, (data: {finished: renderOutputType}) => {
             const { error, file: wavFile, truncated } = data.finished;
@@ -320,12 +318,12 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
             return;
         }
         const renderStartTime = Date.now();
-        const worker = new Worker('./rendererWorker.js', { workerData: {
+        const worker = new Worker('./rendererWorker.ts', { workerData: {
             SR: songData.sampleRate,
             M:  getMode(songData.mode),
             D: duration,
             code: songData.code,
-            N: `../render/message-${uuidv4()}.wav`,
+            N: `../render/message-${crypto.randomUUID()}.wav`,
         } });
         prepareWorker(worker, (data: {finished: renderOutputType}) => {
             const { error, file: wavFile, truncated } = data.finished;

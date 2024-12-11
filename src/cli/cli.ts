@@ -1,4 +1,4 @@
-import { renderCode, Modes } from "../bytebeatToAudio.js";
+import { renderCode, Modes } from "../bytebeatToAudio.ts";
 import { readFile } from "node:fs/promises";
 import process from "node:process";
 

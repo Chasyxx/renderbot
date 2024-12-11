@@ -16,42 +16,31 @@
 
 //     Email contact is at creset200@gmail.com
 
-import { readdir } from 'node:fs/promises';
-import { mkdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { Client, Collection, CommandInteraction, EmbedBuilder, Events, GatewayIntentBits } from 'discord.js';
 import ffmpeg from 'fluent-ffmpeg';
-import { renderbotConfig as config } from './import/config.js';
+import { renderbotConfig as config } from './import/config.ts';
 if(config.ffmpeg.enable) ffmpeg.setFfmpegPath(config.ffmpeg.location);
-import { renderCodeWrapperFile, renderCodeWrapperMessage } from './generateRender.js';
-import { BytebeatMode, bytebeatPlayerLinkDetectionRegexp } from './import/bytebeatplayer.js';
+import { renderCodeWrapperFile, renderCodeWrapperMessage } from './generateRender.ts';
+import { BytebeatMode, bytebeatPlayerLinkDetectionRegexp } from './import/bytebeatplayer.ts';
 
 const djsClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
 const djsCommands: Collection<string, {data: { name: string, description: string }, execute: (x: CommandInteraction)=> void}> = new Collection();
 
-function addCommandsfromFilesWrapper(commandsPath: string) {
-    return (commandFiles: string[]) => {
-        for (const file of commandFiles) {
-            const filePath = join(commandsPath, file);
-            if(!file.endsWith('.ts')) import('./'+filePath).then(command => {
-                if ('data' in command && 'execute' in command) {
-                    djsCommands.set(command.data.name, command);
-                } else {
-                    console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
-                }
-            });
-        }
-    }
-}
-
 const djsCommandsPath = 'commands';
-readdir(djsCommandsPath).then(djsCommandFolders => {
-    for (const folder of djsCommandFolders) {
-        const commandsPath = join(djsCommandsPath,folder);
-        readdir(commandsPath).then((files) => files).then(addCommandsfromFilesWrapper(commandsPath));
-    }
-});
+for (const commandDir of Deno.readDirSync(djsCommandsPath)) {
+    const commandDirPath = djsCommandsPath+'/'+commandDir.name;
+    for (const commandFile of Deno.readDirSync(commandDirPath)) {
+        const commandFilePath = './'+commandDirPath+'/'+commandFile.name;
+        import(commandFilePath).then(command => {
+            if ('data' in command && 'execute' in command) {
+                djsCommands.set(command.data.name, command);
+            } else {
+                console.log(`[WARNING] The command at ${commandFilePath} is missing a required "data" or "execute" property.`);
+            }
+        });
+    }   
+}
 
 djsClient.on(Events.MessageCreate, ($) => {
     if ($.author.bot) return;
@@ -126,6 +115,14 @@ djsClient.once(Events.ClientReady, () => {
     console.log('Ready! (' + djsClient.user!.tag + ')');
 });
 
-if(!existsSync("../render/")) mkdirSync("../render/");
+try {
+await Deno.stat("../render/");
+} catch (error) {
+if (error instanceof Deno.errors.NotFound) {
+    Deno.mkdirSync("../render/");
+} else {
+    throw error;
+}
+}
 
 djsClient.login(config.token);

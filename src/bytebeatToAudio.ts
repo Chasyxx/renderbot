@@ -19,8 +19,6 @@
 export {};
 
 import { EventEmitter } from 'node:events';
-import fs from 'node:fs';
-import process from "node:process";
 const chasyxxPlayerAdditions = {
     /*bit*/        "bitC": function (x: number, y: number, z: number) { return x & y ? z : 0 },
     /*bit reverse*/"br": function (x: number, size: number = 8) {
@@ -274,7 +272,7 @@ export function renderCode(
                 
                 EE.emit('index', sampleIndex);
             } else if (printStats == 1) {
-                console.log(`\x1b[1A${progressBar(sampleIndex, sampleCount, process.stdout.columns - String(sampleIndex).length - String(sampleCount).length - 7, true)} ${sampleIndex} / ${sampleCount}`);
+                console.log(`\x1b[1A${progressBar(sampleIndex, sampleCount, Deno.consoleSize().columns - String(sampleIndex).length - String(sampleCount).length - 7, true)} ${sampleIndex} / ${sampleCount}`);
             }
         }
         try {
@@ -319,7 +317,7 @@ export function renderCode(
         } catch { /* TODO: cli would print an error here */ }
     }
     if (printStats == 1) {
-        console.log(`\x1b[1A${progressBar(1, 1, process.stdout.columns - String(sampleIndex).length * 2 - 7, true)} ${sampleIndex} / ${sampleIndex}`);
+        console.log(`\x1b[1A${progressBar(1, 1, Deno.consoleSize().columns - String(sampleIndex).length * 2 - 7, true)} ${sampleIndex} / ${sampleIndex}`);
         console.timeEnd("Rendering");
     }
     let endIndex = buffer.length - 1;
@@ -356,6 +354,6 @@ export function renderCode(
         console.log(`FILE ${outputFile} SIZE ${formatByteCount(buffer.length)}`);
     }
 
-    fs.writeFileSync(outputFile, buffer);
+    Deno.writeFileSync(outputFile, buffer);
     return { error: null, file: outputFile, truncated };
 }

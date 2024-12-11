@@ -16,9 +16,9 @@
 
 //     Email contact is at creset200@gmail.com
 
-import { renderCode, EE } from "./bytebeatToAudio.js";
+import { renderCode, EE } from "./bytebeatToAudio.ts";
 import { workerData, isMainThread, parentPort } from "node:worker_threads";
-import { renderbotConfig } from "./import/config.js";
+import { renderbotConfig } from "./import/config.ts";
 
 if (isMainThread) {
   console.error("Worker file shouldn't be run directly!");

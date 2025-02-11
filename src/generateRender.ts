@@ -23,8 +23,9 @@ import { Buffer } from 'node:buffer';
 import { Worker } from 'node:worker_threads';
 import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.ts';
 import { renderbotConfig as config } from './import/config.ts';
-import { BytebeatLinkToSongData, bytebeatPlayerLinkDetectionRegexp, BytebeatSongData, BytebeatMode } from './import/bytebeatplayer.ts';
+import { BytebeatSongData, BytebeatMode } from './import/bytebeatdata.ts';
 import ffmpeg from 'fluent-ffmpeg'
+import { bytebeatPlayers, decodeLinkToSongData } from './players/root.ts';
 
 function prepareWorker(worker: Worker, fin: (msg: {finished: renderOutputType}) => void | Promise<void>) {
     worker.on('message', async (eventMessage) => {
@@ -87,54 +88,53 @@ function formatResponse(
     }
 }
 
-async function checkLink(link: string, respondee: Message | CommandInteraction): Promise<boolean> {
-    if (!bytebeatPlayerLinkDetectionRegexp.test(link)) {
-        await respondee.reply({
-            embeds: [
-                new EmbedBuilder()
-                .setColor(0xFF0000)
-                .setTitle("Invalid link")
-                .setDescription("Please give a valid [dollchan](https://dollchan.net/bytebeat) link.")
-            ],
-            ephemeral: respondee instanceof CommandInteraction ? true : undefined
-        });
-        return false;
-    };
-    return true;
+async function linkInvalidError(respondee: Message | CommandInteraction): Promise<void> {
+    const embed = new EmbedBuilder()
+    .setColor(0xFF0000)
+    .setTitle("Invalid link")
+    .setDescription("Please give a valid link using (one of) the below bytebeat player(s).");
+    for(const player of bytebeatPlayers) {
+        embed.addFields({ name: player.name, value: player.domain });
+    }
+    await respondee.reply({
+        embeds: [
+            embed
+        ],
+        ephemeral: respondee instanceof CommandInteraction ? true : undefined
+    });
 }
 
-async function decodeLink(link: string, respondee: Message | CommandInteraction): Promise <BytebeatSongData | null> {
-    let songData: BytebeatSongData;
+async function linkErrorError(respondee: Message | CommandInteraction, error: string): Promise<void> {
+    await respondee.reply({
+        embeds: [
+            new EmbedBuilder()
+            .setColor(0xFF0000)
+            .setTitle("Error decoding link")
+            .setDescription("Ensure the link is valid.")
+            .addFields({ name: "Error", value: error })
+        ],
+        ephemeral: respondee instanceof CommandInteraction ? true : undefined
+    });
+}
+
+async function decodeLink(link: string, respondee: Message | CommandInteraction, print: boolean = true): Promise <BytebeatSongData | null> {
+    let songData: BytebeatSongData | null;
     try {
-        songData = BytebeatLinkToSongData(link);
+        songData = decodeLinkToSongData(link);
     } catch (error) {
-        if (error instanceof Error) {
-            await respondee.reply({
-                embeds: [
-                    new EmbedBuilder()
-                    .setColor(0xFF0000)
-                    .setTitle("Error decoding link")
-                    .setDescription("Ensure the link is valid.")
-                    .addFields({ name: "Error", value: error.message ?? error})
-                ],
-                ephemeral: respondee instanceof CommandInteraction ? true : undefined
-            });
-            return null;
+        if(error instanceof Error) {
+            await linkErrorError(respondee, "```"+(error.stack??error.message)+"```");
         } else {
-            await respondee.reply({
-                embeds: [
-                    new EmbedBuilder()
-                    .setColor(0xFF0000)
-                    .setTitle("Error decoding link")
-                    .setDescription("Ensure the link is valid.")
-                    .addFields({ name: "Error", value: String(error) })
-                ],
-                ephemeral: respondee instanceof CommandInteraction ? true : undefined
-            });
-            return null;
+            await linkErrorError(respondee, "```"+String(error)+"```");
         }
+        return null;
+    }
+    if(songData == null) {
+        if(print) await linkInvalidError(respondee);
+        return null;
     }
     songData.sampleRate ??= 8000;
+    songData.mode ??= 'Bytebeat';
     return songData;
 }
 
@@ -221,8 +221,6 @@ function getMode(mode: BytebeatMode): bytebeatModes {
 }
 
 export async function renderCodeWrapperInteraction(interaction: CommandInteraction, link: string, duration = 30): Promise<void> {
-    if(!(await checkLink(link,interaction))) return;
-    link = link.match(bytebeatPlayerLinkDetectionRegexp)![0];
     const songData: BytebeatSongData | null = await decodeLink(link,interaction);
     if(songData===null) return;
     if(!(await checkSampleLength(duration,songData.sampleRate,interaction))) return;
@@ -303,9 +301,7 @@ export async function renderCodeWrapperFile(message: Message, code: string, samp
 
 export async function renderCodeWrapperMessage(message: Message, link: string): Promise<void> {
     try {
-        if(!(await checkLink(link,message))) return;
-        link = link.match(bytebeatPlayerLinkDetectionRegexp)![0];
-        const songData: BytebeatSongData | null = await decodeLink(link,message);
+        const songData: BytebeatSongData | null = await decodeLink(link, message);
         if(songData===null) return;
         const duration = Math.min(config.audio.sampleLimit / songData.sampleRate, config.audio.defaultSeconds);
         let renderingStarted;

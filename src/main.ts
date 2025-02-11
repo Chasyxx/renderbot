@@ -21,7 +21,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import { renderbotConfig as config } from './import/config.ts';
 if(config.ffmpeg.enable) ffmpeg.setFfmpegPath(config.ffmpeg.location);
 import { renderCodeWrapperFile, renderCodeWrapperMessage } from './generateRender.ts';
-import { BytebeatMode, bytebeatPlayerLinkDetectionRegexp } from './import/bytebeatplayer.ts';
+import { BytebeatMode, linkDetector } from './import/bytebeatdata.ts';
 
 const djsClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
@@ -45,10 +45,11 @@ for (const commandDir of Deno.readDirSync(djsCommandsPath)) {
 djsClient.on(Events.MessageCreate, ($) => {
     if ($.author.bot) return;
     if (config.disabledChannels.includes($.channelId)) return;
-    if (bytebeatPlayerLinkDetectionRegexp.test($.content)) {
-        const link = $.content.match(bytebeatPlayerLinkDetectionRegexp)![0];
+    const links = $.content.match(linkDetector)??[];
+    for(const link of links) {
         renderCodeWrapperMessage($, link.trim());
-    } else if ($.content.startsWith('r.file')) {
+    }
+    if ($.content.startsWith('r.file')) {
         if($.attachments.size > 0 && /^r\.file\s(byte|signed|float|func)\s\d+(\s\d+)?$/.test($.content)) {
             let samplerate = 8000;
             let seconds = 30;

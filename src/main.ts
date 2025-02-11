@@ -126,4 +126,5 @@ if (error instanceof Deno.errors.NotFound) {
 }
 }
 
+console.log(`Logging in using token...`);
 djsClient.login(config.token);

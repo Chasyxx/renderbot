@@ -163,6 +163,17 @@ export type renderOutputType = {
     truncated: null;
 };
 
+type micSampleType = [ left: number, right: number, mono: number ];
+
+let micSound: Uint8Array | null = null;
+
+try {
+    micSound = Deno.readFileSync("../input-sound.raw")
+    console.log("Input sound loaded.");
+} catch (e) {
+    console.warn(e, "\nYou should add an input sound.");
+}
+
 /**
  * Render a bytebeat code into a .wav file.
  * @param samplerate Samplerate to use.
@@ -173,7 +184,8 @@ export type renderOutputType = {
  * @param useChasyxxPlayerAdditions Whether the exotic functions should be added.
  * @param printStats Whether stats should be printed. 0: No. 1: Yes. 2: Send events on EE.
  * @param filename A filename to use. Use `null` for render-(UUIDv4).
- * @param truncate Whether the function can truncate the output if rendering takes longet than 5 minutes.
+ * @param truncate Whether the function can truncate the output.
+ * If rendering time takes longer then this many seconds it will be truncated.
  * 
  * @returns An object, where if error is a string, it shows what went wrong, and file and truncated are null.
  * If error is null, file is the filename of the output and truncated is a boolean stating if the output was truncated due to taking too long to render.
@@ -193,7 +205,7 @@ export function renderCode(
         case Modes.Floatbeat:
         case Modes.Funcbeat: getValues = (x: number) => Math.max(-1, Math.min(1, x)) * 127.5 + 128 & 255; break;
     }
-    let codeFunc: ((t: number, SR: number) => number[] | number) = () => { return 0; };
+    let codeFunc: ((t: number, SRoI: number | micSampleType, samples: number, I: micSampleType) => number[] | number) = () => { return 0; };
     let truncated = false;
     const { params, values } = getFunctions(useChasyxxPlayerAdditions);
     let sampleIndex = 0;
@@ -223,7 +235,7 @@ export function renderCode(
                 else return { error: "Funcbeat error: " + String(e), file: null, truncated: null };
             }
         } else {
-            codeFunc = new Function(...params, `t`, `return 0,\n${codeString || 0};`).bind(globalThis, ...values);
+            codeFunc = new Function(...params, 't', '_micSample', `return 0,\n${codeString || 0};`).bind(globalThis, ...values);
         }
         if (printStats == 2) {
             
@@ -235,7 +247,7 @@ export function renderCode(
             console.log(`${progressBar(0, 1, 20, true)} 0 / ${sampleCount}`);
         }
         try {
-            const out = codeFunc(0, samplerate);
+            const out = codeFunc(0, mode == Modes.Funcbeat ? samplerate : [0, 0, 0], 0, [0, 0, 0]);
             if (stereo == null) {
                 try {
                     stereo = Array.isArray(out);
@@ -276,7 +288,21 @@ export function renderCode(
             }
         }
         try {
-            const out = codeFunc(mode == Modes.Funcbeat ? sampleIndex / samplerate : sampleIndex, samplerate);
+            const micSample: micSampleType = [0, 0, 0];
+            if(micSound !== null) {
+                const idx = Math.floor(sampleIndex / samplerate * 48000) * 2;
+                const left = micSound[idx % micSound.length | 0] / 128 - 1;
+                const right = micSound[(idx + 1) % micSound.length | 0] / 128 - 1;
+                micSample[0] = left;
+                micSample[1] = right;
+                micSample[2] = left/2+right/2;
+            }
+            const out = codeFunc(
+                mode == Modes.Funcbeat ? sampleIndex / samplerate : sampleIndex, // Time (samples in non-funcbeat, seconds otherwise)
+                mode == Modes.Funcbeat ? samplerate : micSample, // sample rate on funcbeat, mic sample otherwise
+                sampleIndex, // funcbeat sample counter
+                micSample // funcbeat mic sample
+            );
             if (stereo) {
                 const bufferIndex = sampleIndex * 2 + 44;
                 if (Array.isArray(out)) {

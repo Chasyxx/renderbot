@@ -9,7 +9,7 @@ export function parser(link: string): BytebeatSongData | null {
     const url = new URL(link);
     if(url.hostname !== 'chasyxx.github.io') return null;
     if(!url.pathname.startsWith("/EnBeat_NEW")) return null;
-    if(url.protocol !== 'https') console.warn("Dafuq? A dollchan link that isn't HTTPS?");
+    if(url.protocol.replace(/:/g,'') !== 'https') console.warn("Dafuq? A chasyxx link that isn't HTTPS?");
     const hash = url.hash.replace(/^#/,'');
     if(hash.startsWith('4')) {
         const dataArr = Uint8Array.from(atob(hash.slice(1)), x => x.charCodeAt(0));

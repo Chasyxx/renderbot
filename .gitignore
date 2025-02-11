@@ -5,3 +5,4 @@ deno.lock
 /render/
 /target/*
 package-lock.json
+input-sound.*

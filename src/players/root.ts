@@ -25,13 +25,14 @@ const blacklistedFiles: string[] = [
 
 for await(const x of Deno.readDir("./players/")) {
     if(blacklistedFiles.includes(x.name) || !x.name.includes('.ts')) continue;
+    console.log(`Loading player definition ${x.name}`);
     const data = await import("./"+x.name);
     if(!('name' in data)) {
         console.warn(`${x.name} name not found. Defaulting to filename.`);
         data.name = "`"+x.name+"`";
     }
     if(!('domain' in data)) {
-        console.warn(`${data.name} domain not found. Defaulting to filename (${x.name}).`);
+        console.warn(`${data.name} domain not found. Defaulting to filename.`);
         data.domain = "`"+x.name+"`";
     }
     if(!('parser' in data)) {
@@ -39,6 +40,7 @@ for await(const x of Deno.readDir("./players/")) {
         continue;
     }
     bytebeatPlayers.push(data);
+    console.log(`Loading player definition ${x.name} Success!`);
 }
 
 export function decodeLinkToSongData(input: string): BytebeatSongData | null {

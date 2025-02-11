@@ -301,7 +301,7 @@ export async function renderCodeWrapperFile(message: Message, code: string, samp
 
 export async function renderCodeWrapperMessage(message: Message, link: string): Promise<void> {
     try {
-        const songData: BytebeatSongData | null = await decodeLink(link, message);
+        const songData: BytebeatSongData | null = await decodeLink(link, message, false);
         if(songData===null) return;
         const duration = Math.min(config.audio.sampleLimit / songData.sampleRate, config.audio.defaultSeconds);
         let renderingStarted;

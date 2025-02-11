@@ -93,8 +93,14 @@ async function linkInvalidError(respondee: Message | CommandInteraction): Promis
     .setColor(0xFF0000)
     .setTitle("Invalid link")
     .setDescription("Please give a valid link using (one of) the below bytebeat player(s).");
+    let counter = 0;
     for(const player of bytebeatPlayers) {
+        if(counter>23 && bytebeatPlayers.length > 25) {
+            embed.addFields({ name: "And more", value: "There are too many players to list!" });
+            break;
+        }
         embed.addFields({ name: player.name, value: player.domain });
+        counter++;
     }
     await respondee.reply({
         embeds: [
@@ -111,9 +117,22 @@ async function linkErrorError(respondee: Message | CommandInteraction, error: st
             .setColor(0xFF0000)
             .setTitle("Error decoding link")
             .setDescription("Ensure the link is valid.")
-            .addFields({ name: "Error", value: error })
+            .addFields({ name: "Error", value: "```"+(error.length > 994 ? `${error.slice(0,989)}(...)` : error)+"```" })
         ],
         ephemeral: respondee instanceof CommandInteraction ? true : undefined
+    });
+}
+
+function renderError(respondee: Message | CommandInteraction, error: string, emoji="\u2755") {
+    if(respondee instanceof Message) respondee.react(emoji);
+    respondee.reply({
+        embeds: [
+            new EmbedBuilder()
+            .setColor(0xFF0000)
+            .setTitle("Error while rendering")
+            .setDescription("```"+(error.length > 994 ? `${error.slice(0,989)}(...)` : error)+"```")
+        ],
+        ephemeral: (respondee instanceof CommandInteraction) ? true : undefined
     });
 }
 
@@ -123,9 +142,9 @@ async function decodeLink(link: string, respondee: Message | CommandInteraction,
         songData = decodeLinkToSongData(link);
     } catch (error) {
         if(error instanceof Error) {
-            await linkErrorError(respondee, "```"+(error.stack??error.message)+"```");
+            await linkErrorError(respondee, (error.stack??error.message));
         } else {
-            await linkErrorError(respondee, "```"+String(error)+"```");
+            await linkErrorError(respondee, String(error));
         }
         return null;
     }
@@ -233,20 +252,13 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
         code: songData.code,
         N: `../render/render-${crypto.randomUUID()}.wav`,
     } });
-    prepareWorker(worker, async (data: {finished: renderOutputType}) => {
+    prepareWorker(worker, (data: {finished: renderOutputType}) => {
         const { error, file: wavFile, truncated } = data.finished;
         const renderEndTime = Date.now();
         if (error == null) {
             sendRender(wavFile,interaction,link,songData,truncated,duration,renderStartTime,renderEndTime);
         } else {
-            await interaction.followUp({
-                embeds: [
-                    new EmbedBuilder()
-                    .setColor(0xFF0000)
-                    .setTitle("Error while rendering")
-                    .setDescription(`\`${error}\``)
-                ]
-            });
+            renderError(interaction, error);
         }
     });
     return;
@@ -280,21 +292,13 @@ export async function renderCodeWrapperFile(message: Message, code: string, samp
                 sendRender(wavFile,message,null,{ code, sampleRate, mode},truncated,duration,renderStartTime,renderEndTime);
             } else {
                 renderingStarted!.delete();
-                message.react("\u2755");
-                message.reply({
-                    embeds: [
-                        new EmbedBuilder()
-                        .setColor(0xFF0000)
-                        .setTitle("Error while rendering")
-                        .setDescription(`\`${error}\``)
-                    ]
-                })
+                renderError(message, error);
             }
         });
         return;    
-    } catch (_) {
-        message.react("\u2757");
-        console.error(_);
+    } catch (e) {
+        console.error(e);
+        try { renderError(message, "Internal error in RenderBot:\n"+(e instanceof Error ? e.stack??String(e) : String(e)), '\u2757'); } catch { /* what */ }
         return;
     }
 }
@@ -309,8 +313,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
             // @ts-expect-error: Property 'send' does not exist on partal channels (i'll only care about those if needed)
             renderingStarted = await message.channel.send({ content: "Rendering started!"});
         } catch {
-            console.error(renderingStarted);
-            // We don't have permission, stop now
+            // We don't have permission to send messages, so stop now
             return;
         }
         const renderStartTime = Date.now();
@@ -329,21 +332,13 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
                 sendRender(wavFile,message,link,songData,truncated,duration,renderStartTime,renderEndTime);
             } else {
                 renderingStarted!.delete();
-                message.react("\u2755");
-                message.reply({
-                    embeds: [
-                        new EmbedBuilder()
-                        .setColor(0xFF0000)
-                        .setTitle("Error while rendering")
-                        .setDescription(`\`${error}\``)
-                    ]
-                })
+                renderError(message, error);
             }
         });
         return;    
-    } catch (_) {
-        message.react("\u2757");
-        console.error(_);
+    } catch (e) {
+        console.error(e);
+        try { renderError(message, "Internal error in RenderBot:\n"+(e instanceof Error ? e.stack??String(e) : String(e)), '\u2757'); } catch { /* what */ }
         return;
     }
 }

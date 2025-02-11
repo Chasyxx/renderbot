@@ -1,3 +1,5 @@
+import { linkDetector } from "../import/bytebeatdata.ts";
+
 export {};
 
 export type bytebeatPlayerEntry = {
@@ -44,6 +46,7 @@ for await(const x of Deno.readDir("./players/")) {
 }
 
 export function decodeLinkToSongData(input: string): BytebeatSongData | null {
+    if(!linkDetector.test(input)) return null;
     for(const entry of bytebeatPlayers) {
         const r = entry.parser(input);
         if(r !== null) return r;

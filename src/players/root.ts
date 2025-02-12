@@ -4,7 +4,9 @@ export {};
 
 export type bytebeatPlayerEntry = {
     name: string,
-    domain: string,
+    domain: string | null,
+    fileName: string,
+    hasAdditions: boolean,
     parser: (link: string) => BytebeatSongData | null,
 }
 
@@ -25,31 +27,42 @@ const blacklistedFiles: string[] = [
     'parser.ts'
 ];
 
+bytebeatPlayers.push({ name: "File", domain: null, fileName: "hardcoded", parser:_=>null, hasAdditions: false });
+
 for await(const x of Deno.readDir("./players/")) {
     if(blacklistedFiles.includes(x.name) || !x.name.includes('.ts')) continue;
     console.log(`Loading player definition ${x.name}`);
     const data = await import("./"+x.name);
-    if(!('name' in data)) {
-        console.warn(`${x.name} name not found. Defaulting to filename.`);
-        data.name = "`"+x.name+"`";
-    }
-    if(!('domain' in data)) {
-        console.warn(`${data.name} domain not found. Defaulting to filename.`);
-        data.domain = "`"+x.name+"`";
-    }
+    const outputData: bytebeatPlayerEntry = { fileName: x.name, name: x.name, domain: x.name, parser: _=>null, hasAdditions: false };
+
+    outputData.fileName = x.name;
+
+    if('name' in data) outputData.name = data.name;
+    else console.warn(`${x.name} name not found. Defaulting to filename.`);
+
+    if('domain' in data) outputData.domain = data.domain;
+    else console.warn(`${data.name} domain not found. Defaulting to filename.`);
+
+    if('hasAdditions' in data) outputData.hasAdditions = data.hasAdditions;
+    else console.warn(`${x.name} hasAdditions not found. Defaulting to false.`);
+
     if(!('parser' in data)) {
         console.error(`${data.name} parser not found. Skipping.`);
         continue;
     }
-    bytebeatPlayers.push(data);
-    console.log(`Loading player definition ${x.name} Success!`);
+    // outputData.parser = (...a)=>data.parser(...a);
+    outputData.parser = data.parser;
+    bytebeatPlayers.push(outputData);
+    console.log(`define ${x.name}-> ${data.name}: ${data.domain} Success!`);
 }
 
-export function decodeLinkToSongData(input: string): BytebeatSongData | null {
+export type DecodedLink = { songData: BytebeatSongData, playerData: bytebeatPlayerEntry };
+
+export function decodeLinkToSongData(input: string): DecodedLink | null {
     if(!linkDetector.test(input)) return null;
     for(const entry of bytebeatPlayers) {
         const r = entry.parser(input);
-        if(r !== null) return r;
+        if(r !== null) return { songData: r, playerData: entry };
     }
     return null;
 }

@@ -1,5 +1,6 @@
 export const name="Chasyxx";
 export const domain="https://chasyxx.github.io/EnBeat_NEW";
+export const hasAdditions=true;
 
 import { URL } from "node:url";
 import { BytebeatSongData, BytebeatMode } from "../import/bytebeatdata.ts";

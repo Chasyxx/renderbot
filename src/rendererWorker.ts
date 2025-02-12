@@ -58,7 +58,7 @@ if (isMainThread) {
       workerData.N,
       workerData.D,
       null,
-      false,
+      workerData.UC,
       2,
       renderbotConfig.audio.maximumProcessingTime,
       renderbotConfig.print.ms

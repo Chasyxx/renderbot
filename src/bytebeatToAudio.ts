@@ -118,9 +118,9 @@ export const EE = new EventEmitter();
 type codeValue = (keyof typeof Math | keyof typeof chasyxxPlayerAdditions | typeof Math.floor | typeof globalThis);
 
 /**
- * Get a list of functions for usage in bytebeat, including ll "Math" functions and potentially exotic functions.
+ * Get a list of functions for usage in bytebeat, including "Math" functions and potentially exotic functions.
  * 
- * 'int' is Math.floor.
+ * 'int' is Math.floor, for compatibility reasons, even though it should be Math.trunc.
  * @param useChasyxxPlayerAdditions Whether to use the Chasyxx player's exotic functions.
  * @returns 
  */
@@ -133,7 +133,7 @@ export function getFunctions(useChasyxxPlayerAdditions: boolean): ({ params: str
     values = params.map(k=>Math[k]);
 
     if (useChasyxxPlayerAdditions) {
-        const newParams = params = Object.getOwnPropertyNames(chasyxxPlayerAdditions);
+        const newParams = Object.getOwnPropertyNames(chasyxxPlayerAdditions);
         //@ts-expect-error - Same as above
         const newValues = newParams.map(k=>chasyxxPlayerAdditions[k]);
         params.push(...newParams);
@@ -297,12 +297,17 @@ export function renderCode(
                 micSample[1] = right;
                 micSample[2] = left/2+right/2;
             }
-            const out = codeFunc(
-                mode == Modes.Funcbeat ? sampleIndex / samplerate : sampleIndex, // Time (samples in non-funcbeat, seconds otherwise)
-                mode == Modes.Funcbeat ? samplerate : micSample, // sample rate on funcbeat, mic sample otherwise
-                sampleIndex, // funcbeat sample counter
-                micSample // funcbeat mic sample
-            );
+            let out: number | number[] = NaN;
+            try {
+                out = codeFunc(
+                    mode == Modes.Funcbeat ? sampleIndex / samplerate : sampleIndex, // Time (samples in non-funcbeat, seconds otherwise)
+                    mode == Modes.Funcbeat ? samplerate : micSample, // sample rate on funcbeat, mic sample otherwise
+                    sampleIndex, // funcbeat sample counter
+                    micSample // funcbeat mic sample
+                );
+            } catch {
+                out = NaN;
+            }
             if (stereo) {
                 const bufferIndex = sampleIndex * 2 + 44;
                 if (Array.isArray(out)) {

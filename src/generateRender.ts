@@ -23,9 +23,9 @@ import { Buffer } from 'node:buffer';
 import { Worker } from 'node:worker_threads';
 import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.ts';
 import { renderbotConfig as config } from './import/config.ts';
-import { BytebeatSongData, BytebeatMode } from './import/bytebeatdata.ts';
+import { BytebeatMode } from './import/bytebeatdata.ts';
 import ffmpeg from 'fluent-ffmpeg'
-import { bytebeatPlayers, decodeLinkToSongData } from './players/root.ts';
+import { bytebeatPlayers, DecodedLink, decodeLinkToSongData } from './players/root.ts';
 
 function prepareWorker(worker: Worker, fin: (msg: {finished: renderOutputType}) => void | Promise<void>) {
     worker.on('message', async (eventMessage) => {
@@ -63,15 +63,15 @@ function prepareWorker(worker: Worker, fin: (msg: {finished: renderOutputType}) 
 }
 
 function formatResponse(
-    link: string | null, songData: BytebeatSongData, credit: boolean,
+    link: string | null, decodedLink: DecodedLink, credit: boolean,
     truncated: boolean, mention: string,
     attachment: AttachmentBuilder, duration: number, renderTime: number, ffmpegTime?: number
     ): object {
     const embed = new EmbedBuilder()
 	    .setColor(0x00FF00)
-        .setTitle(`${songData.sampleRate || 8000}hz ${songData.mode || "Bytebeat"}`)
+        .setTitle(`${decodedLink.songData.sampleRate || 8000}hz ${decodedLink.songData.mode || "Bytebeat"}`)
         .addFields(
-            { name: "Length", value: `${songData.code.length}c`, inline: true },
+            { name: "Length", value: `${decodedLink.songData.code.length}c`, inline: true },
             { name: "Render time", value: `${renderTime}s (${Math.round((duration/renderTime) * 100) / 100}s/s)`, inline: true }
         );
         if(ffmpegTime != undefined) embed.addFields({ name: "FFMPEG time", value: `${ffmpegTime}s (${Math.round((duration/ffmpegTime) * 100) / 100}s/s)`, inline: true })
@@ -82,6 +82,12 @@ function formatResponse(
             embed.setFooter({ text: 'Output truncated due to processing time' })
         }
         if(credit) embed.addFields({ name: 'Triggered by', value: mention, inline: true});
+        if(decodedLink.playerData.domain == null)
+            embed.addFields({ name: 'Detected player',
+            value: `${decodedLink.playerData.name} \`${decodedLink.playerData.fileName}\``, inline: true})
+        else
+            embed.addFields({ name: 'Detected player',
+            value: `[${decodedLink.playerData.name}](${decodedLink.playerData.domain}) \`${decodedLink.playerData.fileName}\``, inline: true})
     return {
         files: [attachment],
         embeds: [embed]
@@ -99,7 +105,7 @@ async function linkInvalidError(respondee: Message | CommandInteraction): Promis
             embed.addFields({ name: "And more", value: "There are too many players to list!" });
             break;
         }
-        embed.addFields({ name: player.name, value: player.domain });
+        embed.addFields([{ name: player.name, value: player.domain ?? "no domain" }]);
         counter++;
     }
     await respondee.reply({
@@ -136,10 +142,10 @@ function renderError(respondee: Message | CommandInteraction, error: string, emo
     });
 }
 
-async function decodeLink(link: string, respondee: Message | CommandInteraction, print: boolean = true): Promise <BytebeatSongData | null> {
-    let songData: BytebeatSongData | null;
+async function decodeLink(link: string, respondee: Message | CommandInteraction, print: boolean = true): Promise <DecodedLink | null> {
+    let data: DecodedLink | null;
     try {
-        songData = decodeLinkToSongData(link);
+        data = decodeLinkToSongData(link);
     } catch (error) {
         if(error instanceof Error) {
             await linkErrorError(respondee, (error.stack??error.message));
@@ -148,13 +154,13 @@ async function decodeLink(link: string, respondee: Message | CommandInteraction,
         }
         return null;
     }
-    if(songData == null) {
+    if(data == null) {
         if(print) await linkInvalidError(respondee);
         return null;
     }
-    songData.sampleRate ??= 8000;
-    songData.mode ??= 'Bytebeat';
-    return songData;
+    data.songData.sampleRate ??= 8000;
+    data.songData.mode ??= 'Bytebeat';
+    return data;
 }
 
 async function checkSampleLength(seconds: number, samplerate: number, respondee: Message | CommandInteraction): Promise<boolean> {
@@ -173,7 +179,7 @@ async function checkSampleLength(seconds: number, samplerate: number, respondee:
     return true;
 }
 
-async function sendFile(respondee: Message | CommandInteraction, file: string, link: string | null, songData: BytebeatSongData,
+async function sendFile(respondee: Message | CommandInteraction, file: string, link: string | null, songData: DecodedLink,
     truncated: boolean, duration: number, renderTimes: [number, number], ffmpegTimes?: [number, number]) {
     const fileData = Deno.readFileSync(file);
     const attachment = new AttachmentBuilder(Buffer.from(fileData), { name: file });
@@ -202,7 +208,7 @@ function printFfmpegError(error: Error, stdout: string, stderr: string): void {
     console.error(stderr?.split('\n').slice(-12).join('\n'));
 }
 
-async function sendRender(wavFile: string, respondee: Message | CommandInteraction, link: string | null, songData: BytebeatSongData, truncated: boolean, duration: number, renderStartTime: number, renderEndTime: number) {
+async function sendRender(wavFile: string, respondee: Message | CommandInteraction, link: string | null, decodedLink: DecodedLink, truncated: boolean, duration: number, renderStartTime: number, renderEndTime: number) {
     const finalFile = wavFile.replace('.wav', config.ffmpeg.fileExtension);
     if (config.ffmpeg.enable) {
         const ffmpegStartTime = Date.now();
@@ -211,13 +217,13 @@ async function sendRender(wavFile: string, respondee: Message | CommandInteracti
             .on('end', async () => {
                 const ffmpegEndTime = Date.now();
                 Deno.removeSync(wavFile);
-                await sendFile(respondee, finalFile, link, songData, truncated, duration, [renderStartTime, renderEndTime], [ffmpegStartTime, ffmpegEndTime]);
+                await sendFile(respondee, finalFile, link, decodedLink, truncated, duration, [renderStartTime, renderEndTime], [ffmpegStartTime, ffmpegEndTime]);
                 Deno.removeSync(finalFile);
             })
             .on('error', async (error, o, e) => {
                 Deno.remove(finalFile).then(() => { }).catch(() => { }); // Just try to delete the file, doesn't matter if it succeeds
                 printFfmpegError(error, o ?? '(null)', e ?? '(null)')
-                await sendFile(respondee, wavFile, link, songData, truncated, duration, [renderStartTime, renderEndTime]);
+                await sendFile(respondee, wavFile, link, decodedLink, truncated, duration, [renderStartTime, renderEndTime]);
                 Deno.removeSync(wavFile);
             })
         for (const key in config.ffmpeg.extra) {
@@ -227,7 +233,7 @@ async function sendRender(wavFile: string, respondee: Message | CommandInteracti
         }
         conversion.save(finalFile);
     } else {
-        await sendFile(respondee, wavFile, link, songData, truncated, duration, [renderStartTime, renderEndTime]);
+        await sendFile(respondee, wavFile, link, decodedLink, truncated, duration, [renderStartTime, renderEndTime]);
         Deno.removeSync(wavFile);
     }
 }
@@ -240,23 +246,24 @@ function getMode(mode: BytebeatMode): bytebeatModes {
 }
 
 export async function renderCodeWrapperInteraction(interaction: CommandInteraction, link: string, duration = 30): Promise<void> {
-    const songData: BytebeatSongData | null = await decodeLink(link,interaction);
-    if(songData===null) return;
-    if(!(await checkSampleLength(duration,songData.sampleRate,interaction))) return;
+    const decodedLink: DecodedLink | null = await decodeLink(link,interaction);
+    if(decodedLink===null) return;
+    if(!(await checkSampleLength(duration,decodedLink.songData.sampleRate,interaction))) return;
     await interaction.deferReply();
     const renderStartTime = Date.now();
     const worker = new Worker('./rendererWorker.ts', { workerData: {
-        SR: songData.sampleRate,
-        M:  getMode(songData.mode),
+        UC: decodedLink.playerData.hasAdditions,
+        SR: decodedLink.songData.sampleRate,
+        M:  getMode(decodedLink.songData.mode),
         D: duration,
-        code: songData.code,
+        code: decodedLink.songData.code,
         N: `../render/render-${crypto.randomUUID()}.wav`,
     } });
     prepareWorker(worker, (data: {finished: renderOutputType}) => {
         const { error, file: wavFile, truncated } = data.finished;
         const renderEndTime = Date.now();
         if (error == null) {
-            sendRender(wavFile,interaction,link,songData,truncated,duration,renderStartTime,renderEndTime);
+            sendRender(wavFile,interaction,link,decodedLink,truncated,duration,renderStartTime,renderEndTime);
         } else {
             renderError(interaction, error);
         }
@@ -278,6 +285,7 @@ export async function renderCodeWrapperFile(message: Message, code: string, samp
         }
         const renderStartTime = Date.now();
         const worker = new Worker('./rendererWorker.ts', { workerData: {
+            UC: false,
             SR: sampleRate,
             M: getMode(mode),
             D: duration,
@@ -289,7 +297,7 @@ export async function renderCodeWrapperFile(message: Message, code: string, samp
             const renderEndTime = Date.now();
             if (error == null) {
                 renderingStarted!.delete();
-                sendRender(wavFile,message,null,{ code, sampleRate, mode},truncated,duration,renderStartTime,renderEndTime);
+                sendRender(wavFile,message,null,{songData: {code, sampleRate, mode}, playerData: bytebeatPlayers[0]},truncated,duration,renderStartTime,renderEndTime);
             } else {
                 renderingStarted!.delete();
                 renderError(message, error);
@@ -305,9 +313,9 @@ export async function renderCodeWrapperFile(message: Message, code: string, samp
 
 export async function renderCodeWrapperMessage(message: Message, link: string): Promise<void> {
     try {
-        const songData: BytebeatSongData | null = await decodeLink(link, message, false);
-        if(songData===null) return;
-        const duration = Math.min(config.audio.sampleLimit / songData.sampleRate, config.audio.defaultSeconds);
+        const decodedLink: DecodedLink | null = await decodeLink(link, message, false);
+        if(decodedLink===null) return;
+        const duration = Math.min(config.audio.sampleLimit / decodedLink.songData.sampleRate, config.audio.defaultSeconds);
         let renderingStarted;
         try {
             // @ts-expect-error: Property 'send' does not exist on partal channels (i'll only care about those if needed)
@@ -318,10 +326,11 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
         }
         const renderStartTime = Date.now();
         const worker = new Worker('./rendererWorker.ts', { workerData: {
-            SR: songData.sampleRate,
-            M:  getMode(songData.mode),
+            UC: decodedLink.playerData.hasAdditions,
+            SR: decodedLink.songData.sampleRate,
+            M:  getMode(decodedLink.songData.mode),
             D: duration,
-            code: songData.code,
+            code: decodedLink.songData.code,
             N: `../render/message-${crypto.randomUUID()}.wav`,
         } });
         prepareWorker(worker, (data: {finished: renderOutputType}) => {
@@ -329,7 +338,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
             const renderEndTime = Date.now();
             if (error == null) {
                 renderingStarted!.delete();
-                sendRender(wavFile,message,link,songData,truncated,duration,renderStartTime,renderEndTime);
+                sendRender(wavFile,message,link,decodedLink,truncated,duration,renderStartTime,renderEndTime);
             } else {
                 renderingStarted!.delete();
                 renderError(message, error);

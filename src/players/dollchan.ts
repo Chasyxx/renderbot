@@ -1,5 +1,6 @@
 export const name="Dollchan";
 export const domain="https://dollchan.net/bytebeat";
+export const hasAdditions=false;
 
 import { URL } from "node:url";
 import { BytebeatSongData, BytebeatMode } from "../import/bytebeatdata.ts";

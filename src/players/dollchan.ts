@@ -21,18 +21,6 @@ export function parser(link: string): BytebeatSongData | null {
         return { mode,
         sampleRate: new DataView(dataArr.buffer).getFloat32(1, true),
         code: inflateRaw(new Uint8Array(dataArr.buffer, 5), { to: 'string' }) }
-    } else if(hash.startsWith('v3b64')) {
-        const dataString = inflateRaw(Uint8Array.from(atob(hash.slice(5)), x => x.charCodeAt(0)), { to: 'string' });
-        let songData: { sampleRate: number, mode: BytebeatMode, code: string, formula?: string } = {code: '', mode: 'Bytebeat', sampleRate: 8000};
-        if(dataString.startsWith('{')) {
-            songData = JSON.parse(dataString);
-            if(songData.formula) {
-                songData.code = songData.formula;
-            }
-        } else {
-            songData = { code: dataString, sampleRate: 8000, mode: 'Bytebeat' };
-        }
-        return songData;
     }
     return null;
 }

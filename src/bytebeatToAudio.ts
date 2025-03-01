@@ -84,33 +84,26 @@ export function visualizer(array: number[], width: number = 64, height: number =
     return out
 }
 
-function formatByteCount(bytes: number) {
+export function formatByteCount(bytes: number) {
+    if(bytes<1e3) return bytes + "B";
     let power1000, power1024;
-    if (bytes < 1e3) {
-        power1000 = bytes + " B"
-    } else if (bytes < 1e6) {
-        const kb = String(bytes / 1e3).replace(/(?<=.\d\d)\d+$/, '')
-        power1000 = kb + " KB"
+    if (bytes < 1e6) {
+        power1000 = (bytes / 1e3).toFixed(2) + "KB"
     } else if (bytes < 1e9) {
-        const mb = String(bytes / 1e6).replace(/(?<=.\d\d)\d+$/, '')
-        power1000 = mb + " MB"
+        power1000 = (bytes / 1e6).toFixed(2) + "MB"
     } else /*if (bytes < 1e12)*/ {
-        const gb = String(bytes / 1e9).replace(/(?<=.\d\d)\d+$/, '')
-        power1000 = gb + " GB"
+        power1000 = (bytes / 1e9).toFixed(2) + "GB"
     }
     if (bytes < 1024) {
-        power1024 = bytes + " B"
+        power1024 = bytes + "B"
     } else if (bytes < (1024 ** 2)) {
-        const kib = String(bytes / 1024).replace(/(?<=.\d\d)\d+$/, '')
-        power1024 = kib + " KiB"
+        power1024 = (bytes / 1024).toFixed(2) + "KiB"
     } else if (bytes < (1024 ** 3)) {
-        const mib = String(bytes / (1024 ** 2)).replace(/(?<=.\d\d)\d+$/, '')
-        power1024 = mib + " MiB"
+        power1024 = (bytes / (1024 ** 2)).toFixed(2) + "MiB"
     } else /*if (bytes < (1024 ** 4))*/ {
-        const gib = String(bytes / (1024 ** 3)).replace(/(?<=.\d\d)\d+$/, '')
-        power1024 = gib + " GiB"
+        power1024 = (bytes / (1024 ** 3)).toFixed(2) + "GiB"
     }
-    return power1000 + " / " + power1024;
+    return power1024 + "/" + power1000;
 }
 
 export const EE = new EventEmitter();

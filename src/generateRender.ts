@@ -21,7 +21,7 @@ export {};
 import { AttachmentBuilder, EmbedBuilder, CommandInteraction, Message } from 'discord.js';
 import { Buffer } from 'node:buffer';
 import { Worker } from 'node:worker_threads';
-import { progressBar, Modes as bytebeatModes, renderOutputType } from './bytebeatToAudio.ts';
+import { progressBar, Modes as bytebeatModes, renderOutputType, formatByteCount } from './bytebeatToAudio.ts';
 import { renderbotConfig as config } from './import/config.ts';
 import { BytebeatMode } from './import/bytebeatdata.ts';
 import ffmpeg from 'fluent-ffmpeg'
@@ -63,7 +63,7 @@ function prepareWorker(worker: Worker, fin: (msg: {finished: renderOutputType}) 
 }
 
 function formatResponse(
-    link: string | null, decodedLink: DecodedLink, credit: boolean,
+    decodedLink: DecodedLink, credit: boolean,
     truncated: boolean, mention: string,
     attachment: AttachmentBuilder, duration: number, renderTime: number, ffmpegTime?: number
     ): object {
@@ -72,12 +72,10 @@ function formatResponse(
         .setTitle(`${decodedLink.songData.sampleRate || 8000}hz ${decodedLink.songData.mode || "Bytebeat"}`)
         .addFields(
             { name: "Length", value: `${decodedLink.songData.code.length}c`, inline: true },
+            { name: "Size", value: formatByteCount(new Blob([decodedLink.songData.code]).size), inline: true },
             { name: "Render time", value: `${renderTime}s (${Math.round((duration/renderTime) * 100) / 100}s/s)`, inline: true }
         );
         if(ffmpegTime != undefined) embed.addFields({ name: "FFMPEG time", value: `${ffmpegTime}s (${Math.round((duration/ffmpegTime) * 100) / 100}s/s)`, inline: true })
-        if(link !== null && link.length < 2048) {
-            embed.setURL(link);
-        }
         if(truncated) {
             embed.setFooter({ text: 'Output truncated due to processing time' })
         }
@@ -179,7 +177,7 @@ async function checkSampleLength(seconds: number, samplerate: number, respondee:
     return true;
 }
 
-async function sendFile(respondee: Message | CommandInteraction, file: string, link: string | null, songData: DecodedLink,
+async function sendFile(respondee: Message | CommandInteraction, file: string, songData: DecodedLink,
     truncated: boolean, duration: number, renderTimes: [number, number], ffmpegTimes?: [number, number]) {
     const fileData = Deno.readFileSync(file);
     const attachment = new AttachmentBuilder(Buffer.from(fileData), { name: file });
@@ -187,13 +185,13 @@ async function sendFile(respondee: Message | CommandInteraction, file: string, l
     const ffmpegTime = ffmpegTimes===undefined?undefined:Math.round((ffmpegTimes[1] - ffmpegTimes[0]) / 10) / 100;
     if (respondee instanceof CommandInteraction) {
         await respondee.followUp(formatResponse(
-            link,songData,config.credit.command,truncated,
+            songData,config.credit.command,truncated,
             `<@${respondee.user.id}>`,attachment,
             duration, renderTime, ffmpegTime
         ));
     } else {
         await respondee.reply(formatResponse(
-            link,songData,config.credit.command,truncated,
+            songData,config.credit.command,truncated,
             `<@${respondee.author.id}>`,attachment,
             duration, renderTime, ffmpegTime
         ));
@@ -208,7 +206,7 @@ function printFfmpegError(error: Error, stdout: string, stderr: string): void {
     console.error(stderr?.split('\n').slice(-12).join('\n'));
 }
 
-async function sendRender(wavFile: string, respondee: Message | CommandInteraction, link: string | null, decodedLink: DecodedLink, truncated: boolean, duration: number, renderStartTime: number, renderEndTime: number) {
+async function sendRender(wavFile: string, respondee: Message | CommandInteraction, decodedLink: DecodedLink, truncated: boolean, duration: number, renderStartTime: number, renderEndTime: number) {
     const finalFile = wavFile.replace('.wav', config.ffmpeg.fileExtension);
     if (config.ffmpeg.enable) {
         const ffmpegStartTime = Date.now();
@@ -217,13 +215,13 @@ async function sendRender(wavFile: string, respondee: Message | CommandInteracti
             .on('end', async () => {
                 const ffmpegEndTime = Date.now();
                 Deno.removeSync(wavFile);
-                await sendFile(respondee, finalFile, link, decodedLink, truncated, duration, [renderStartTime, renderEndTime], [ffmpegStartTime, ffmpegEndTime]);
+                await sendFile(respondee, finalFile, decodedLink, truncated, duration, [renderStartTime, renderEndTime], [ffmpegStartTime, ffmpegEndTime]);
                 Deno.removeSync(finalFile);
             })
             .on('error', async (error, o, e) => {
                 Deno.remove(finalFile).then(() => { }).catch(() => { }); // Just try to delete the file, doesn't matter if it succeeds
                 printFfmpegError(error, o ?? '(null)', e ?? '(null)')
-                await sendFile(respondee, wavFile, link, decodedLink, truncated, duration, [renderStartTime, renderEndTime]);
+                await sendFile(respondee, wavFile, decodedLink, truncated, duration, [renderStartTime, renderEndTime]);
                 Deno.removeSync(wavFile);
             })
         for (const key in config.ffmpeg.extra) {
@@ -233,7 +231,7 @@ async function sendRender(wavFile: string, respondee: Message | CommandInteracti
         }
         conversion.save(finalFile);
     } else {
-        await sendFile(respondee, wavFile, link, decodedLink, truncated, duration, [renderStartTime, renderEndTime]);
+        await sendFile(respondee, wavFile, decodedLink, truncated, duration, [renderStartTime, renderEndTime]);
         Deno.removeSync(wavFile);
     }
 }
@@ -263,7 +261,7 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
         const { error, file: wavFile, truncated } = data.finished;
         const renderEndTime = Date.now();
         if (error == null) {
-            sendRender(wavFile,interaction,link,decodedLink,truncated,duration,renderStartTime,renderEndTime);
+            sendRender(wavFile,interaction,decodedLink,truncated,duration,renderStartTime,renderEndTime);
         } else {
             renderError(interaction, error);
         }
@@ -297,7 +295,7 @@ export async function renderCodeWrapperFile(message: Message, code: string, samp
             const renderEndTime = Date.now();
             if (error == null) {
                 renderingStarted!.delete();
-                sendRender(wavFile,message,null,{songData: {code, sampleRate, mode}, playerData: bytebeatPlayers[0]},truncated,duration,renderStartTime,renderEndTime);
+                sendRender(wavFile,message,{songData: {code, sampleRate, mode}, playerData: bytebeatPlayers[0]},truncated,duration,renderStartTime,renderEndTime);
             } else {
                 renderingStarted!.delete();
                 renderError(message, error);
@@ -338,7 +336,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string): 
             const renderEndTime = Date.now();
             if (error == null) {
                 renderingStarted!.delete();
-                sendRender(wavFile,message,link,decodedLink,truncated,duration,renderStartTime,renderEndTime);
+                sendRender(wavFile,message,decodedLink,truncated,duration,renderStartTime,renderEndTime);
             } else {
                 renderingStarted!.delete();
                 renderError(message, error);

@@ -27,7 +27,6 @@ import { inflateRaw } from "pako";
 /** 
  * Although this code is inside of RenderBot, I actually copied SArpnt code and 
  * then modified it to fit RenderBot's enviornment.
- * I'd try to test this code more but the website coincidentially went down.
  * 
  * Here is the relevant license for the code (known as the MIT or Expat license):
  * 
@@ -170,7 +169,9 @@ function from89(coded: string, bitIndex = 0 /*, byteUp = true*/): Uint8Array {
 }
 
 export function parser(link: string): BytebeatSongData | null {
-    const hash = new URL(link).hash;
+    const url = new URL(link);
+    if(url.hostname !== 'bytebeat.ficial.net') return null;
+    const hash = url.hash;
 	const v = hash[1];
 
     if (v === "6" || v === "5") {

@@ -5,6 +5,7 @@ import configData from '../../config.json' with { type: 'json' };
 export type configType = {
     token: string;
     disabledChannels: string[];
+    disabledServers: string[];
     print: {
         ms: number,
         terminal: boolean,

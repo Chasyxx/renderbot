@@ -32,6 +32,7 @@ function prepareWorker(worker: Worker,
     update?: (percentage: number) => void | Promise<void>
 ) {
     let over = false;
+    let last = 0;
     let cb = 0;
     function rate(){
         cb = setTimeout(rate, 5000);
@@ -66,7 +67,7 @@ function prepareWorker(worker: Worker,
             if(update && over) {
                 over = false;
                 const percentage = Math.floor(eventMessage.index/eventMessage.max*100);
-                update(percentage);
+                if(percentage>=last) update(last=percentage);
             }
         }
 

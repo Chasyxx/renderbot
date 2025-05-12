@@ -18,9 +18,9 @@
 
 export {};
 
-import { renderCodeWrapperFile, renderCodeWrapperInteraction } from '../../generateRender.ts';
+import { renderCodeWrapperFile } from '../../generateRender.ts';
 import { renderbotConfig} from '../../import/config.ts';
-import { checkBlacklist } from '../../import/blacklist.ts';
+import { checkBlacklist } from '../../import/hash.ts';
 import { EmbedBuilder } from 'discord.js';
 import { BytebeatMode } from '../../import/bytebeatdata.ts';
 
@@ -59,11 +59,7 @@ export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody =
 };
 
 export async function execute(interaction: import('discord.js').CommandInteraction) {
-    if(!(await checkBlacklist(interaction))) return;
-    if (renderbotConfig.disabledChannels.includes(interaction.channelId)) {
-        await interaction.reply({ content: "Sorry, you can't use me here!", ephemeral: true });
-        return;
-    }
+    if(!(await checkBlacklist(interaction,true))) return;
     // const link: string = String(interaction.options.get('link',true).value||'invalid');
     // await renderCodeWrapperInteraction(interaction,link,duration);
     const mode1 = interaction.options.get('mode',false)?.value ?? "byte";

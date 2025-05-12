@@ -8,27 +8,27 @@ Renderbot is as said above. The main purposes are:
 ## Setup
 1. Clone the repo: `git clone https://github.com/Chasyxx/renderbot.git`, and change into the new directory: `cd renderbot`
 2. Install nessacary NPM packages: `npm i`
-3. Configure the bot as below so tsc can check your config typing.
-4. Compile to JS: `npm run tsc`. It will detect missing values or typing errors in your config, refer to config.ts to see the exact typing.
+3. Configure the bot as below.
 
 ### Configuration
 1. Rename `config.json.template` to `config.json`.
 2. Edit `config.json` as needed. See configuration options below.
-3. Sync commands to Discord: `npm run cmd`
+3. Sync commands to Discord: `deno run -REN deployCommands.ts` inside of `src`
 
 ### Configuration options
 These options **do not affect the CLI.** They only affect how the bot functionality operates.
 #### config.json
 * **token**: The discord bot token. **This must be changed from the template.**
-* **disabledChannels**: A list of channel IDs where RenderBot won't automatically render or allow the render command to be used.
+* **disabledChannels**: A list of channel hashes where the bot won't operate. Useful for server admins who want RenderBot-free channels.
+* **disabledServers**: A list of server hashes where the bot won't operate. Useful for the instance host to prevent abuse.
 * **print**: Related to progress bars.
   * **ms**: Milliseconds between prints. Turn this up if **terminal** is disabled.
-  * **terminal**: True has a colored progress bar that stays on one line, while false has a basic progress bar that prints on a new line. False is designed for the systemd journal.
+  * **terminal**: True has a colored progress bar that stays on one line, while false has a basic progress bar that prints on a new line (designed for the systemd journal).
   * **barSize**: How big the progress bar is.
 * **audio**: Various audio settings.
   * **sampleLimit**: How many samples are allowed to be rendered. For N seconds of samplerate S Hz, S*N will get you the value. The default value is 1 minute of 48kHz audio. **You should probably only go up to 9000000 to meet file size limits if you don't use the FFmpeg feature.**
   * **defaultSeconds**: The default number of seconds for the `/render` command, and for message auto-rendering, where it may get shortened to meet the sample limit if needed.
-  * **maximumProcessingTime**: The amount of seconds the bot will try to process a code. If it takes longer it'll stop there and output what it could process in that time, giving a notice it was truncated. Discord gives the bot 15 minutes to react to a deferred reply before giving an error, so it's in the range (0,900). 780 (or 13 minutes) is a good max to allow for 2 minutes for FFmpeg.
+  * **maximumProcessingTime**: The amount of seconds the bot will try to process a code. If it takes longer it'll stop there and output what it could process in that time, giving a notice it was truncated. The default is 15 minutes.
 * **credit**: Whehter to send a mention for the user for either a **message** or when the `/render` **command** is run.
 * **ffmpeg**: Options for FFmpeg conversion. Mainly for file size reasons.
   * **enable**: Set this to false if you don't have FFmpeg or don't want to use it. This causes RenderBot to directly give .wav files. **If you want other file formats and have FFmpeg set this to *true.***

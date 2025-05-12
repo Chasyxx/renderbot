@@ -47,7 +47,6 @@ bytebeatPlayers.push({ name: "File", domain: null, fileName: "hardcoded", parser
 
 for await(const x of Deno.readDir("./players/")) {
     if(blacklistedFiles.includes(x.name) || !x.name.includes('.ts')) continue;
-    console.log(`Loading player definition ${x.name}`);
     const data = await import("./"+x.name);
     const outputData: bytebeatPlayerEntry = { fileName: x.name, name: x.name, domain: x.name, parser: _=>null, hasAdditions: false };
 
@@ -69,7 +68,7 @@ for await(const x of Deno.readDir("./players/")) {
     // outputData.parser = (...a)=>data.parser(...a);
     outputData.parser = data.parser;
     bytebeatPlayers.push(outputData);
-    console.log(`define ${x.name}-> ${data.name}: ${data.domain} Success!`);
+    console.log(`define ${x.name} -> ${data.name}: ${data.domain}`);
 }
 
 export type DecodedLink = { songData: BytebeatSongData, playerData: bytebeatPlayerEntry };

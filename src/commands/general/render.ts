@@ -20,7 +20,7 @@ export {};
 
 import { renderCodeWrapperInteraction } from '../../generateRender.ts';
 import { renderbotConfig} from '../../import/config.ts';
-import { checkBlacklist } from '../../import/blacklist.ts';
+import { checkBlacklist } from '../../import/hash.ts';
 
 export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody = {
     name: 'render',
@@ -41,11 +41,7 @@ export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody =
 };
 
 export async function execute(interaction: import('discord.js').CommandInteraction) {
-    if(!(await checkBlacklist(interaction))) return;
-    if (renderbotConfig.disabledChannels.includes(interaction.channelId)) {
-        await interaction.reply({ content: "Sorry, you can't use me here!", ephemeral: true });
-        return;
-    }
+    if(!(await checkBlacklist(interaction,true))) return;
     const link: string = String(interaction.options.get('link',true).value||'invalid');
     const duration: number = Math.abs(Number(interaction.options.get('duration',false)?.value??0))||renderbotConfig.audio.defaultSeconds;
     await renderCodeWrapperInteraction(interaction,link,duration);

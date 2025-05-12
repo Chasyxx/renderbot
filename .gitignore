@@ -1,7 +1,6 @@
 .vscode
 /node_modules/
 /config.json
-/blacklist.txt
 deno.lock
 /render/
 /target/*

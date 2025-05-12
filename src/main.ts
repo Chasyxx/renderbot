@@ -16,12 +16,12 @@
 
 //     Email contact is at creset200@gmail.com
 
-import { Client, Collection, CommandInteraction, EmbedBuilder, Events, GatewayIntentBits } from 'discord.js';
+import { Client, Collection, CommandInteraction, Events, GatewayIntentBits } from 'discord.js';
 import ffmpeg from 'fluent-ffmpeg';
 import { renderbotConfig as config } from './import/config.ts';
 if(config.ffmpeg.enable) ffmpeg.setFfmpegPath(config.ffmpeg.location);
-import { renderCodeWrapperFile, renderCodeWrapperMessage } from './generateRender.ts';
-import { BytebeatMode, linkDetector } from './import/bytebeatdata.ts';
+import { renderCodeWrapperMessage } from './generateRender.ts';
+import { linkDetector } from './import/bytebeatdata.ts';
 import { checkBlacklist } from './import/blacklist.ts';
 
 const djsClient = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
@@ -55,44 +55,44 @@ djsClient.on(Events.MessageCreate, ($) => {
             }
         })
     }
-    if ($.content.startsWith('r.file')) {
-        checkBlacklist($).then(x=>{
-            if(x) {
-                if($.attachments.size > 0 && /^r\.file\s(byte|signed|float|func)\s\d+(\s\d+)?$/.test($.content)) {
-                    let samplerate = 8000;
-                    let seconds = 30;
-                    let mode: BytebeatMode = 'Bytebeat';
-                    const matches = $.content.match(/\d+/g)!;
-                    if(matches.length > 1) seconds = parseInt(matches[1],10);
-                    samplerate = parseInt(matches[0],10);
-                    if(/r\.file\sfloat/.test($.content)) mode = 'Floatbeat';
-                    else if(/r\.file\sfunc/.test($.content)) mode = 'Funcbeat';
-                    else if(/r\.file\ssigned/.test($.content)) mode = 'Signed Bytebeat';
-                    console.log(mode);
-                    fetch($.attachments.at(0)!.url).then((v)=>{
-                        if(v.status === 200) {
-                            v.text().then(code=>{
-                                renderCodeWrapperFile($,code,samplerate,mode,seconds);
-                            })
-                        } else {
-                            const generator = new EmbedBuilder()
-                            .setColor(0xed4f4f)
-                            .setTitle("HTTP error")
-                            .setDescription("Server returned " + v.status);
-                            $.reply({ embeds: [generator] });
-                        }
-                    });
-                } else {
-                    const generator = new EmbedBuilder()
-                    .setColor(0x22d871)
-                    .setTitle("Help for r.file")
-                    .setDescription("Renders large codes using a JavaScript text file and message parameters.")
-                    .addFields({ name: "Syntax", value: "r.file <byte|signed|float|func> <samplerate> [seconds]" })
-                    $.reply({ embeds: [generator] });
-                }
-            }
-        })
-    }
+    // if ($.content.startsWith('r.file')) {
+    //     checkBlacklist($).then(x=>{
+    //         if(x) {
+    //             if($.attachments.size > 0 && /^r\.file\s(byte|signed|float|func)\s\d+(\s\d+)?$/.test($.content)) {
+    //                 let samplerate = 8000;
+    //                 let seconds = 30;
+    //                 let mode: BytebeatMode = 'Bytebeat';
+    //                 const matches = $.content.match(/\d+/g)!;
+    //                 if(matches.length > 1) seconds = parseInt(matches[1],10);
+    //                 samplerate = parseInt(matches[0],10);
+    //                 if(/r\.file\sfloat/.test($.content)) mode = 'Floatbeat';
+    //                 else if(/r\.file\sfunc/.test($.content)) mode = 'Funcbeat';
+    //                 else if(/r\.file\ssigned/.test($.content)) mode = 'Signed Bytebeat';
+    //                 console.log(mode);
+    //                 fetch($.attachments.at(0)!.url).then((v)=>{
+    //                     if(v.status === 200) {
+    //                         v.text().then(code=>{
+    //                             renderCodeWrapperFile($,code,samplerate,mode,seconds);
+    //                         })
+    //                     } else {
+    //                         const generator = new EmbedBuilder()
+    //                         .setColor(0xed4f4f)
+    //                         .setTitle("HTTP error")
+    //                         .setDescription("Server returned " + v.status);
+    //                         $.reply({ embeds: [generator] });
+    //                     }
+    //                 });
+    //             } else {
+    //                 const generator = new EmbedBuilder()
+    //                 .setColor(0x22d871)
+    //                 .setTitle("Help for r.file")
+    //                 .setDescription("Renders large codes using a JavaScript text file and message parameters.")
+    //                 .addFields({ name: "Syntax", value: "r.file <byte|signed|float|func> <samplerate> [seconds]" })
+    //                 $.reply({ embeds: [generator] });
+    //             }
+    //         }
+    //     })
+    // }
 });
 
 djsClient.on(Events.InteractionCreate, async (interaction) => {

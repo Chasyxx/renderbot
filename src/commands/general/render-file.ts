@@ -1,0 +1,90 @@
+//     Renderbot: a Discord bot for rendering bytebeat codes
+//     Copyright (C) 2024 Chase Taylor
+
+//     This program is free software: you can redistribute it and/or modify
+//     it under the terms of the GNU Affero General Public License as published
+//     by the Free Software Foundation, either version 3 of the License, or
+//     (at your option) any later version.
+
+//     This program is distributed in the hope that it will be useful,
+//     but WITHOUT ANY WARRANTY; without even the implied warranty of
+//     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//     GNU Affero General Public License for more details.
+
+//     You should have received a copy of the GNU Affero General Public License
+//     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+//     Email contact is at creset200@gmail.com
+
+export {};
+
+import { renderCodeWrapperFile, renderCodeWrapperInteraction } from '../../generateRender.ts';
+import { renderbotConfig} from '../../import/config.ts';
+import { checkBlacklist } from '../../import/blacklist.ts';
+import { EmbedBuilder } from 'discord.js';
+import { BytebeatMode } from '../../import/bytebeatdata.ts';
+
+export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody = {
+    name: 'render-file',
+    description: 'Render a bytebeat expression from file',
+    options: [
+        {
+            type: 11,
+            required: true,
+            name: "file",
+            description: "JavaScript file"
+        },
+        {
+            type: 3,
+            name: "mode",
+            description: "Sound mode",
+            choices: [
+                { name: "Bytebeat", value: "byte" },
+                { name: "Signed bytebeat", value: "signed" },
+                { name: "Floatbeat", value: "float" },
+                { name: "Funcbeat", value: "func" }
+            ]
+        },
+        {
+            type: 10,
+            name: "samplerate",
+            description: "Sample rate (Hz)"
+        },
+        {
+            type: 10,
+            name: "duration",
+            description: "Duration in seconds"
+        }
+    ]
+};
+
+export async function execute(interaction: import('discord.js').CommandInteraction) {
+    if(!(await checkBlacklist(interaction))) return;
+    if (renderbotConfig.disabledChannels.includes(interaction.channelId)) {
+        await interaction.reply({ content: "Sorry, you can't use me here!", ephemeral: true });
+        return;
+    }
+    // const link: string = String(interaction.options.get('link',true).value||'invalid');
+    // await renderCodeWrapperInteraction(interaction,link,duration);
+    const mode1 = interaction.options.get('mode',false)?.value ?? "byte";
+    let mode: BytebeatMode = "Bytebeat";
+    if(mode1==="signed") mode = "Signed Bytebeat";
+    else if(mode1==="float") mode = "Floatbeat";
+    else if(mode1==="func") mode = "Funcbeat";
+    const sampleRate: number = Math.abs(Number(interaction.options.get('samplerate',false)?.value??0))||renderbotConfig.audio.defaultSeconds;
+    const duration: number = Math.abs(Number(interaction.options.get('duration',false)?.value??0))||renderbotConfig.audio.defaultSeconds;
+    const url: URL = new URL(interaction.options.get('file',true)!.attachment!.url);
+    fetch(url).then((v)=>{
+        if(v.status === 200) {
+            v.text().then(code=>{
+                renderCodeWrapperFile(interaction,code,sampleRate,mode,duration);
+            })
+        } else {
+            const generator = new EmbedBuilder()
+            .setColor(0xed4f4f)
+            .setTitle("HTTP error")
+            .setDescription("Server returned " + v.status);
+            interaction.reply({ embeds: [generator] });
+        }
+    });
+}

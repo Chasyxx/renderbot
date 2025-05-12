@@ -324,12 +324,12 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
     return;
 }
 
-export async function renderCodeWrapperFile(message: Message, code: string, sampleRate: number, mode: BytebeatMode, duration = 30): Promise<void> {
+export async function renderCodeWrapperFile(interaction: CommandInteraction, code: string, sampleRate: number, mode: BytebeatMode, duration = 30): Promise<void> {
     try {
-        if(!(await checkSampleLength(duration,sampleRate,message))) return;
+        if(!(await checkSampleLength(duration,sampleRate,interaction))) return;
         let outputMessage;
         try {
-            outputMessage = await message.reply({ content: "Your JS code is being rendered now...", allowedMentions: { repliedUser: false } });
+            outputMessage = await interaction.reply({ content: "Rendering started, please wait...", allowedMentions: { repliedUser: false } });
         } catch {
             console.error(outputMessage);
             // We don't have permission, stop now
@@ -348,17 +348,17 @@ export async function renderCodeWrapperFile(message: Message, code: string, samp
             const { error, file: wavFile, truncated } = data.finished;
             const renderEndTime = Date.now();
             if (error == null) {
-                sendRender(wavFile,message,outputMessage,{songData: {code, sampleRate, mode}, playerData: bytebeatPlayers[0]},truncated,duration,renderStartTime,renderEndTime,"`r.file` output:");
+                sendRender(wavFile,interaction,outputMessage,{songData: {code, sampleRate, mode}, playerData: bytebeatPlayers[0]},truncated,duration,renderStartTime,renderEndTime,"Output:");
             } else {
-                renderError(message, outputMessage, error);
+                renderError(interaction, outputMessage, error);
             }
         }, (percentage: number) => {
-            outputMessage.edit({ content: `\`r.file\` progress: ${percentage}%`, allowedMentions: { repliedUser: false } });
+            outputMessage.edit({ content: `Rendering started, please wait... [${percentage}%]`, allowedMentions: { repliedUser: false } });
         });
         return;    
     } catch (e) {
         console.error(e);
-        try { renderError(message, null, "Internal error in RenderBot:\n"+(e instanceof Error ? e.stack??String(e) : String(e)), '\u2757'); } catch { /* what */ }
+        try { renderError(interaction, null, "Internal error in RenderBot:\n"+(e instanceof Error ? e.stack??String(e) : String(e)), '\u2757'); } catch { /* what */ }
         return;
     }
 }

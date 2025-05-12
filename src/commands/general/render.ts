@@ -19,7 +19,8 @@
 export {};
 
 import { renderCodeWrapperInteraction } from '../../generateRender.ts';
-import { renderbotConfig } from '../../import/config.ts';
+import { renderbotConfig} from '../../import/config.ts';
+import { checkBlacklist } from '../../import/blacklist.ts';
 
 export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody = {
     name: 'render',
@@ -40,6 +41,7 @@ export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody =
 };
 
 export async function execute(interaction: import('discord.js').CommandInteraction) {
+    if(!(await checkBlacklist(interaction))) return;
     if (renderbotConfig.disabledChannels.includes(interaction.channelId)) {
         await interaction.reply({ content: "Sorry, you can't use me here!", ephemeral: true });
         return;

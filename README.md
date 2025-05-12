@@ -42,4 +42,4 @@ To execute the bot, use `deno run -REN --allow-write=../render/ --allow-run=/usr
 To use the CLI, go to `src/cli` and run `cli.ts`.
 
 ### Node.JS
-This branch is designed to work with Deno. For Deno use the "main" branch.
+This branch is designed to work with Deno. For Node.JS use the "main" branch.

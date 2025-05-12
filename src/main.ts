@@ -47,11 +47,11 @@ djsClient.on(Events.MessageCreate, ($) => {
     if ($.author.bot) return;
     if (config.disabledChannels.includes($.channelId)) return;
     const links = $.content.match(linkDetector)??[];
-    for(const link of links) {
+    for(let link = 0; link < links.length; link++) {
         // if(!checkBlacklist($)) return;
         checkBlacklist($).then(x=>{
             if(x) {
-                renderCodeWrapperMessage($, link.trim());
+                renderCodeWrapperMessage($, links[link].trim(), link>0?link+1:null);
             }
         })
     }
@@ -76,7 +76,7 @@ djsClient.on(Events.MessageCreate, ($) => {
                             })
                         } else {
                             const generator = new EmbedBuilder()
-                            .setColor(0xFF0000)
+                            .setColor(0xed4f4f)
                             .setTitle("HTTP error")
                             .setDescription("Server returned " + v.status);
                             $.reply({ embeds: [generator] });
@@ -84,7 +84,7 @@ djsClient.on(Events.MessageCreate, ($) => {
                     });
                 } else {
                     const generator = new EmbedBuilder()
-                    .setColor(0x00FF00)
+                    .setColor(0x22d871)
                     .setTitle("Help for r.file")
                     .setDescription("Renders large codes using a JavaScript text file and message parameters.")
                     .addFields({ name: "Syntax", value: "r.file <byte|signed|float|func> <samplerate> [seconds]" })

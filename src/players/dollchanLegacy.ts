@@ -29,7 +29,8 @@ const players = [
     { domain: "dollchan.net", path: "/bytebeat" },
     { domain: "t-8492.github.io", path: "/bbeat2" },
     { domain: "gfljbeat2.pages.dev", path: "/" },
-    { domain: "gfljs2100-user.github.io", path: "/GFLJBeat" }
+    { domain: "gfljs2100-user.github.io", path: "/GFLJBeat" },
+    { domain: "bsquareii.github.io", path: "/BSquare_BytebeatComposer" }
 ]
 
 export function parser(link: string): BytebeatSongData | null {

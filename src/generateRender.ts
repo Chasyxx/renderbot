@@ -26,19 +26,23 @@ import { renderbotConfig as config } from './import/config.ts';
 import { BytebeatMode } from './import/bytebeatdata.ts';
 import ffmpeg from 'fluent-ffmpeg'
 import { bytebeatPlayers, DecodedLink, decodeLinkToSongData } from './players/root.ts';
+import { getSplash } from './splashes.ts';
 
 function prepareWorker(worker: Worker, 
     fin?: (msg: {finished: renderOutputType}) => void | Promise<void>,
     update?: (percentage: number) => void | Promise<void>
 ) {
-    let over = false;
-    let last = 0;
+    let lastPercentage = 0;
+    let percentage = 0;
     let cb = 0;
-    function rate(){
-        cb = setTimeout(rate, 5000);
-        over = true;
+    function rate() {
+        if(percentage>lastPercentage) {
+            update!(percentage);
+            lastPercentage = percentage;
+        }
+        cb = setTimeout(rate,5000);
     }
-    rate();over=false;
+    if(update) rate();
     worker.on('message', async (eventMessage) => {
 
         if (eventMessage.status) {
@@ -64,15 +68,11 @@ function prepareWorker(worker: Worker,
         }
         if (Object.hasOwnProperty.call(eventMessage,'index')) {
             console.log(`${config.print.terminal?'\x1b[1A':''}%s %d / %d`, progressBar(eventMessage.index, eventMessage.max, 40, config.print.terminal), eventMessage.index, eventMessage.max);
-            if(update && over) {
-                over = false;
-                const percentage = Math.floor(eventMessage.index/eventMessage.max*100);
-                if(percentage>=last) update(last=percentage);
-            }
+            percentage = Math.floor(eventMessage.index/eventMessage.max*100);
         }
 
         if (eventMessage.finished) {
-            clearTimeout(cb); // If I'm just superstitious it's still valid
+            if(cb>0) clearTimeout(cb); // Even if I'm just superstitious it's still valid
             if(fin) await fin(eventMessage);
         }
     })
@@ -92,9 +92,10 @@ function formatResponse(
             { name: "Render time", value: `${renderTime}s (${Math.round((duration/renderTime) * 100) / 100}s/s)`, inline: true }
         );
         if(ffmpegTime != undefined) embed.addFields({ name: "FFMPEG time", value: `${ffmpegTime}s (${Math.round((duration/ffmpegTime) * 100) / 100}s/s)`, inline: true })
-        if(truncated) {
-            embed.setFooter({ text: 'Output truncated due to processing time. s/s value may be inaccurate.' })
-        }
+        embed.setFooter({ text: truncated ? 
+            '***Output truncated due to processing time. s/s value may be inaccurate.***'
+            : getSplash()
+        })
         if(credit) embed.addFields({ name: 'Triggered by', value: mention, inline: true});
         if(decodedLink.playerData.domain == null)
             embed.addFields({ name: 'Detected player',
@@ -301,7 +302,7 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
     const decodedLink: DecodedLink | null = await decodeLink(link,interaction);
     if(decodedLink===null) return;
     if(!(await checkSampleLength(duration,decodedLink.songData.sampleRate,interaction))) return;
-    const outputMessage = await interaction.reply({ content: "Rendering started, Please wait...", allowedMentions: { repliedUser: false } });
+    const outputMessage = await interaction.reply({ content: "Rendering started, Please wait...\n-# "+getSplash(), allowedMentions: { repliedUser: false } });
     const renderStartTime = Date.now();
     const worker = new Worker('./rendererWorker.ts', { workerData: {
         UC: decodedLink.playerData.hasAdditions,
@@ -320,7 +321,7 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
             renderError(interaction,outputMessage,error);
         }
     }, (percentage: number) => {
-        outputMessage.edit({ content: `Rendering started, Please wait... [${percentage}%]`, allowedMentions: { repliedUser: false } });
+        outputMessage.edit({ content: `Rendering started, Please wait... [${percentage}%]\n-# ${getSplash()}`, allowedMentions: { repliedUser: false } });
     });
     return;
 }
@@ -330,7 +331,7 @@ export async function renderCodeWrapperFile(interaction: CommandInteraction, cod
         if(!(await checkSampleLength(duration,sampleRate,interaction))) return;
         let outputMessage;
         try {
-            outputMessage = await interaction.reply({ content: "Rendering started, please wait...", allowedMentions: { repliedUser: false } });
+            outputMessage = await interaction.reply({ content: "Rendering started, please wait...\n-# "+getSplash(), allowedMentions: { repliedUser: false } });
         } catch {
             console.error(outputMessage);
             // We don't have permission, stop now
@@ -354,7 +355,7 @@ export async function renderCodeWrapperFile(interaction: CommandInteraction, cod
                 renderError(interaction, outputMessage, error);
             }
         }, (percentage: number) => {
-            outputMessage.edit({ content: `Rendering started, please wait... [${percentage}%]`, allowedMentions: { repliedUser: false } });
+            outputMessage.edit({ content: `Rendering started, please wait... [${percentage}%]\n-# ${getSplash()}`, allowedMentions: { repliedUser: false } });
         });
         return;    
     } catch (e) {
@@ -371,7 +372,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string, c
         const duration = Math.min(config.audio.sampleLimit / decodedLink.songData.sampleRate, config.audio.defaultSeconds);
         let outputMessage;
         try {
-            outputMessage = await message.reply({ content: "Preview generation started. Please wait..." + (count ? " x"+count : ""), allowedMentions: { repliedUser: false } });
+            outputMessage = await message.reply({ content: "Preview generation started. Please wait..." + (count ? `x${count}\n-# `: "\n-# ") + getSplash(), allowedMentions: { repliedUser: false } });
         } catch {
             // We don't have permission to send messages, so stop now
             return;
@@ -394,7 +395,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string, c
                 renderError(message, outputMessage, error);
             }
         }, (percentage: number) => {
-            outputMessage.edit({ content: "Preview generation ongoing. Please wait..." + (count ? " x "+count : " ") + `[${percentage}%]`, allowedMentions: { repliedUser: false } });
+            outputMessage.edit({ content: "Preview generation ongoing. Please wait..." + (count ? " x "+count : " ") + `[${percentage}%]\n-# ${getSplash()}`, allowedMentions: { repliedUser: false } });
         });
         return;    
     } catch (e) {

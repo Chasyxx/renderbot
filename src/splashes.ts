@@ -30,7 +30,7 @@ export const splashes: string[] = [
     "I dunno, man, I *might* have eighty televisions, but if I do, *they're all 1080p!*",
     "Reject all else, 8 bit computing is the way!",
     "Windows systems when you remove system32 -> :(",
-    "The creator of this bot uses Arch Linux, and he'd like to let you anow of that fact.",
+    "The creator of this bot uses Arch Linux, and they'd like to let you anow of that fact.",
     "Where's my pet eldrich horror now?",
     "galvanize that steel and squAre it",
     "Sorry, maximum call stack size exceeded!",

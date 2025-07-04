@@ -27,6 +27,7 @@ import { BytebeatMode } from './import/bytebeatdata.ts';
 import ffmpeg from 'fluent-ffmpeg'
 import { bytebeatPlayers, DecodedLink, decodeLinkToSongData } from './players/root.ts';
 import { getSplash } from './splashes.ts';
+import { title } from 'node:process';
 
 function prepareWorker(worker: Worker, 
     fin?: (msg: {finished: renderOutputType}) => void | Promise<void>,
@@ -154,7 +155,7 @@ function renderError(respondee: Message | CommandInteraction, responder: Message
     if(respondee instanceof Message) respondee.react(emoji);
     if(responder instanceof InteractionResponse || (responder instanceof Message && responder?.editable)) {
         responder.edit({
-            content: "There was an error while rendering.",
+            content: "There was an error.",
             embeds: [
                 new EmbedBuilder()
                 .setColor(0xed4f4f)
@@ -227,6 +228,22 @@ async function checkSampleLength(seconds: number, samplerate: number, respondee:
 async function sendFile(respondee: Message | CommandInteraction, responder: Message | null | InteractionResponse, file: string, songData: DecodedLink,
     truncated: boolean, duration: number, renderTimes: [number, number], ffmpegTimes?: [number, number], messageContent?: string) {
     const fileData = Deno.readFileSync(file);
+    if(fileData.length >= 10_000_000) {
+        await responder?.edit({
+            content: "There was an error.",
+            embeds: [
+                new EmbedBuilder()
+                .setTitle("Error sending render")
+                .setColor(0xeded4f)
+                .setDescription(`File too large! Got ${fileData.length} bytes which is over 10 million (the 10 MB file size limit).`)
+                .addFields({
+                    name: "Max length estimate",
+                    value: `${duration/fileData.length*9_000_000|0} seconds`
+                })
+            ]
+        })
+        return;
+    }
     const attachment = new AttachmentBuilder(Buffer.from(fileData), { name: file });
     const renderTime = Math.round((renderTimes[1] - renderTimes[0]) / 10) / 100;
     const ffmpegTime = ffmpegTimes===undefined?undefined:Math.round((ffmpegTimes[1] - ffmpegTimes[0]) / 10) / 100;

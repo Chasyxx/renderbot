@@ -27,7 +27,6 @@ import { BytebeatMode } from './import/bytebeatdata.ts';
 import ffmpeg from 'fluent-ffmpeg'
 import { bytebeatPlayers, DecodedLink, decodeLinkToSongData } from './players/root.ts';
 import { getSplash } from './splashes.ts';
-import { title } from 'node:process';
 
 function prepareWorker(worker: Worker, 
     fin?: (msg: {finished: renderOutputType}) => void | Promise<void>,
@@ -68,7 +67,7 @@ function prepareWorker(worker: Worker,
             }
         }
         if (Object.hasOwnProperty.call(eventMessage,'index')) {
-            console.log(`${config.print.terminal?'\x1b[1A':''}%s %d / %d`, progressBar(eventMessage.index, eventMessage.max, 40, config.print.terminal), eventMessage.index, eventMessage.max);
+            console.log(`${config.print.terminal?'\x1b[1A':''}%s %d / %d`, progressBar(eventMessage.index, eventMessage.max, config.print.barSize, config.print.terminal), eventMessage.index, eventMessage.max);
             percentage = Math.floor(eventMessage.index/eventMessage.max*100);
         }
 
@@ -92,18 +91,20 @@ function formatResponse(
             { name: "Size", value: formatByteCount(new Blob([decodedLink.songData.code]).size), inline: true },
             { name: "Render time", value: `${renderTime}s (${Math.round((duration/renderTime) * 100) / 100}s/s)`, inline: true }
         );
-        if(ffmpegTime != undefined) embed.addFields({ name: "FFMPEG time", value: `${ffmpegTime}s (${Math.round((duration/ffmpegTime) * 100) / 100}s/s)`, inline: true })
-        embed.setFooter({ text: truncated ? 
-            '***Output truncated due to processing time. s/s value may be inaccurate.***'
-            : getSplash()
-        })
+        if(ffmpegTime != undefined) embed.addFields({ name: "FFmpeg time", value: `${ffmpegTime}s (${Math.round((duration/ffmpegTime) * 100) / 100}s/s)`, inline: true })
+        embed.setFooter({ text: getSplash() });
         if(credit) embed.addFields({ name: 'Triggered by', value: mention, inline: true});
         if(decodedLink.playerData.domain == null)
             embed.addFields({ name: 'Detected player',
             value: `${decodedLink.playerData.name} \`${decodedLink.playerData.fileName}\``, inline: true})
         else
             embed.addFields({ name: 'Detected player',
-            value: `[${decodedLink.playerData.name}](${decodedLink.playerData.domain}) \`${decodedLink.playerData.fileName}\``, inline: true})
+            value: `[${decodedLink.playerData.name}](${decodedLink.playerData.domain}) \`${decodedLink.playerData.fileName}\``, inline: true});
+        if(truncated) {
+            embed.addFields({ name: 'Truncated',
+                value: "Rendering took too long and I gave up.\nSome of the file is silent and the s/s value is less accurate."
+            });
+        }
     return messageContent?{
         content: messageContent,
         files: [attachment],
@@ -281,6 +282,7 @@ function printFfmpegError(error: Error, stdout: string, stderr: string): void {
 async function sendRender(wavFile: string, respondee: Message | CommandInteraction, responder: Message | InteractionResponse | null, decodedLink: DecodedLink, truncated: boolean, duration: number, renderStartTime: number, renderEndTime: number, textContent?: string) {
     const finalFile = wavFile.replace('.wav', config.ffmpeg.fileExtension);
     if (config.ffmpeg.enable) {
+        responder?.edit("Running FFmpeg, please wait...");
         const ffmpegStartTime = Date.now();
         const conversion = ffmpeg(wavFile)
             .toFormat(config.ffmpeg.format)
@@ -343,17 +345,10 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
     return;
 }
 
-export async function renderCodeWrapperFile(interaction: CommandInteraction, code: string, sampleRate: number, mode: BytebeatMode, duration = 30): Promise<void> {
+export async function renderCodeWrapperFile(interaction: CommandInteraction, code: string, sampleRate: number, mode: BytebeatMode, duration = 30, outputMessage: InteractionResponse<boolean>): Promise<void> {
     try {
         if(!(await checkSampleLength(duration,sampleRate,interaction))) return;
-        let outputMessage;
-        try {
-            outputMessage = await interaction.reply({ content: "Rendering started, please wait...\n-# "+getSplash(), allowedMentions: { repliedUser: false } });
-        } catch {
-            console.error(outputMessage);
-            // We don't have permission, stop now
-            return;
-        }
+        await outputMessage.edit({ content: "Rendering started, please wait...\n-# "+getSplash(), allowedMentions: { repliedUser: false } });
         const renderStartTime = Date.now();
         const worker = new Worker('./rendererWorker.ts', { workerData: {
             UC: false,
@@ -389,7 +384,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string, c
         const duration = Math.min(config.audio.sampleLimit / decodedLink.songData.sampleRate, config.audio.defaultSeconds);
         let outputMessage;
         try {
-            outputMessage = await message.reply({ content: "Preview generation started. Please wait..." + (count ? `x${count}\n-# `: "\n-# ") + getSplash(), allowedMentions: { repliedUser: false } });
+            outputMessage = await message.reply({ content: "Preview generation started. Please wait..." + (count ? ` x${count}\n-# `: "\n-# ") + getSplash(), allowedMentions: { repliedUser: false } });
         } catch {
             // We don't have permission to send messages, so stop now
             return;

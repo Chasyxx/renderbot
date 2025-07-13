@@ -70,10 +70,11 @@ export async function execute(interaction: import('discord.js').CommandInteracti
     const sampleRate: number = Math.abs(Number(interaction.options.get('samplerate',false)?.value??0))||renderbotConfig.audio.defaultSeconds;
     const duration: number = Math.abs(Number(interaction.options.get('duration',false)?.value??0))||renderbotConfig.audio.defaultSeconds;
     const url: URL = new URL(interaction.options.get('file',true)!.attachment!.url);
+    const message = await interaction.reply("Downloading code, this might take a moment...");
     fetch(url).then((v)=>{
         if(v.status === 200) {
             v.text().then(code=>{
-                renderCodeWrapperFile(interaction,code,sampleRate,mode,duration);
+                renderCodeWrapperFile(interaction,code,sampleRate,mode,duration,message);
             })
         } else {
             const generator = new EmbedBuilder()

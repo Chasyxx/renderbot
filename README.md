@@ -31,11 +31,12 @@ These options **do not affect the CLI.** They only affect how the bot functional
   * **maximumProcessingTime**: The amount of seconds the bot will try to process a code. If it takes longer it'll stop there and output what it could process in that time, giving a notice it was truncated. The default is 15 minutes.
 * **credit**: Whehter to send a mention for the user for either a **message** or when the `/render` **command** is run.
 * **ffmpeg**: Options for FFmpeg conversion. Mainly for file size reasons.
-  * **enable**: Set this to false if you don't have FFmpeg or don't want to use it. This causes RenderBot to directly give .wav files. **If you want other file formats and have FFmpeg set this to *true.***
-  * **location**: *Where the `ffmpeg` or `ffmpeg.exe` binary is.* The default location is good for most Unix systems. If you're using Windows you want to change this.
-  * **format**: The audio format you want to use. Defaults to `ogg`.
+  * **enable**: Set this to false if you don't have FFmpeg or don't want to use it. This causes RenderBot to directly give .wav files.
+  * **location**: *Where the `ffmpeg` or `ffmpeg.exe` binary is.* The default location is good for most Unix systems; If you're using Windows or have it elsewhere you want to change this.
+  * **format**: The audio format you want to use. Defaults to `mp3`.
   * **fileExtension**: The file extension for the file, in case it's different from the FFmpeg format.
-  * **extra**: Any extra function calls to the FFmpeg converter. Replace `"audioQuality": [5]` with `"audioBitrate": [125]` if you're using mp3.
+  * **bitrate**: Bitrate of the output. Default 125. You can set this to `null`.
+  * **extra**: Any extra function calls to the FFmpeg converter.
 
 ## Execution
 To execute the bot, use `deno run -REN --allow-write=../render/ --allow-run=/usr/bin/ffmpeg main.ts` inside of `src`. I wished to specifically use `--allow-net=discord.com:443,gateway.discord.gg:443,cdn.discordapp.com:443`, but the bot eventually contacts region-specific servers, so a generic `--allow-net` is probably needed, and at some point generic env access is needed too. And workers seem to bring up a bunch of read permissions prompts too, unavoidable without full read permissions for some godforsaken reason.

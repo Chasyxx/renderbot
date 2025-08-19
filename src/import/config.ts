@@ -25,6 +25,7 @@ export type configType = {
         location: string,
         format: string,
         fileExtension: string,
+        bitrate: number | null,
         extra: { [key: string]: (string | number)[] }
     }
 };

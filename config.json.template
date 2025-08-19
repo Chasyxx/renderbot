@@ -19,10 +19,9 @@
     "ffmpeg": {
         "enable": true,
         "location": "/usr/bin/ffmpeg",
-        "format": "ogg",
-        "fileExtension": ".ogg",
-        "extra": {
-            "audioQuality": [5]
-        }
+        "format": "mp3",
+        "fileExtension": ".mp3",
+        "bitrate": 125,
+        "extra": {}
     }
 }

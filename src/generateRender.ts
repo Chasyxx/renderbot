@@ -28,6 +28,14 @@ import ffmpeg from 'fluent-ffmpeg'
 import { bytebeatPlayers, DecodedLink, decodeLinkToSongData } from './players/root.ts';
 import { getSplash } from './splashes.ts';
 
+type sendFileOutput = null | { fileSize: number, duration: number, bitrate: number | null };
+type Context = {
+    timeTruncation: boolean | null,
+    fileSizeBitrateReduction: number | null,
+    fileSizeTruncation: number | null,
+    ffmpegError: Error | null
+};
+
 function prepareWorker(worker: Worker, 
     fin?: (msg: {finished: renderOutputType}) => void | Promise<void>,
     update?: (percentage: number) => void | Promise<void>
@@ -78,9 +86,32 @@ function prepareWorker(worker: Worker,
     })
 }
 
+function handleContext(builder: EmbedBuilder, context: Context) {
+    if(context.timeTruncation) {
+        builder.addFields({ name: 'Time truncated',
+            value: "Rendering took too long and I gave up.\nSome of the file is silent and the s/s value is less accurate."
+        });
+    }
+    if(context.fileSizeBitrateReduction) {
+        builder.addFields({ name: 'Bitrate reduced',
+            value: `The full bitrate ${config.ffmpeg.bitrate} resulted in a file that was too large. I reduced it to ${context.fileSizeBitrateReduction}.`
+        });
+    }
+    if(context.fileSizeTruncation) {
+        builder.addFields({ name: 'Size truncation',
+            value: `The full duration resulted in a file that was too large. I reduced it to ${context.fileSizeTruncation} seconds.`
+        });
+    }
+    if(context.ffmpegError) {
+        builder.addFields({ name: 'FFmpeg error',
+            value: `FFmpeg encountered an error and I sent the WAV file instead.`
+        });
+    }
+}
+
 function formatResponse(
     decodedLink: DecodedLink, credit: boolean,
-    truncated: boolean, mention: string,
+    context: Context, mention: string,
     attachment: AttachmentBuilder, duration: number, renderTime: number, ffmpegTime?: number, messageContent?: string
     ): object {
     const embed = new EmbedBuilder()
@@ -100,11 +131,7 @@ function formatResponse(
         else
             embed.addFields({ name: 'Detected player',
             value: `[${decodedLink.playerData.name}](${decodedLink.playerData.domain}) \`${decodedLink.playerData.fileName}\``, inline: true});
-        if(truncated) {
-            embed.addFields({ name: 'Truncated',
-                value: "Rendering took too long and I gave up.\nSome of the file is silent and the s/s value is less accurate."
-            });
-        }
+        handleContext(embed, context);
     return messageContent?{
         content: messageContent,
         files: [attachment],
@@ -226,49 +253,61 @@ async function checkSampleLength(seconds: number, samplerate: number, respondee:
     return true;
 }
 
+async function fileLengthError(responder: Message | null | InteractionResponse, fileSize: number, maxDuration: number, maxBitrate: number, context: Context) {
+    const embed = new EmbedBuilder()
+        .setTitle("Error sending render")
+        .setColor(0xeded4f)
+        .setDescription(`File too large! Got ${formatByteCount(fileSize)} > 10 MB filesize limit.`)
+        .addFields({
+            name: "Max length estimate",
+            value: `${maxDuration} seconds`
+        });
+    handleContext(embed, context);
+    if(config.ffmpeg.bitrate!==null) {
+        embed.addFields({
+            name: "Max bitrate estimate",
+            value: `${maxBitrate}`
+        });
+    }
+    await responder?.edit({
+        content: "There was an error.",
+        embeds: [
+            embed
+        ]
+    });
+}
+
 async function sendFile(respondee: Message | CommandInteraction, responder: Message | null | InteractionResponse, file: string, songData: DecodedLink,
-    truncated: boolean, duration: number, renderTimes: [number, number], ffmpegTimes?: [number, number], messageContent?: string) {
+    context: Context, duration: number, renderTimes: [number, number], ffmpegTimes?: [number, number], messageContent?: string): Promise<sendFileOutput> {
     const fileData = Deno.readFileSync(file);
     if(fileData.length >= 10_000_000) {
-        await responder?.edit({
-            content: "There was an error.",
-            embeds: [
-                new EmbedBuilder()
-                .setTitle("Error sending render")
-                .setColor(0xeded4f)
-                .setDescription(`File too large! Got ${fileData.length} bytes which is over 10 million (the 10 MB file size limit).`)
-                .addFields({
-                    name: "Max length estimate",
-                    value: `${duration/fileData.length*9_000_000|0} seconds`
-                })
-            ]
-        })
-        return;
+        return { fileSize: fileData.length, duration: duration / fileData.length*9_000_000|0, bitrate: config.ffmpeg.bitrate ? config.ffmpeg.bitrate / fileData.length*9_000_000|0  : null };
     }
     const attachment = new AttachmentBuilder(Buffer.from(fileData), { name: file });
     const renderTime = Math.round((renderTimes[1] - renderTimes[0]) / 10) / 100;
     const ffmpegTime = ffmpegTimes===undefined?undefined:Math.round((ffmpegTimes[1] - ffmpegTimes[0]) / 10) / 100;
     if (respondee instanceof CommandInteraction) {
         await responder?.edit(formatResponse(
-            songData,config.credit.command,truncated,
+            songData,config.credit.command,context,
             `<@${respondee.user.id}>`,attachment,
             duration, renderTime, ffmpegTime, messageContent
         ));
     } else {
         if(responder instanceof Message && responder?.editable) {
             await responder.edit(formatResponse(
-                songData,config.credit.command,truncated,
+                songData,config.credit.command,context,
                 `<@${respondee.author.id}>`,attachment,
                 duration, renderTime, ffmpegTime, messageContent
             ));
         } else {
             await respondee.reply(formatResponse(
-                songData,config.credit.command,truncated,
+                songData,config.credit.command,context,
                 `<@${respondee.author.id}>`,attachment,
                 duration, renderTime, ffmpegTime, messageContent
             ));
         }
-    }
+    };
+    return null;
 }
 
 function printFfmpegError(error: Error, stdout: string, stderr: string): void {
@@ -279,33 +318,88 @@ function printFfmpegError(error: Error, stdout: string, stderr: string): void {
     console.error(stderr?.split('\n').slice(-12).join('\n'));
 }
 
-async function sendRender(wavFile: string, respondee: Message | CommandInteraction, responder: Message | InteractionResponse | null, decodedLink: DecodedLink, truncated: boolean, duration: number, renderStartTime: number, renderEndTime: number, textContent?: string) {
-    const finalFile = wavFile.replace('.wav', config.ffmpeg.fileExtension);
-    if (config.ffmpeg.enable) {
-        responder?.edit("Running FFmpeg, please wait...");
+function runFFmpeg(wavFile: string, finalFile: string, duration: number | null, bitrate: number | null,
+    successCallback: (time: [ number, number ]) => void, 
+    errorCallback: (error: Error, stdout: string | null, stderr: string | null) => void): Promise<[ number, number? ]> {
+    return new Promise(resolve=>{
         const ffmpegStartTime = Date.now();
         const conversion = ffmpeg(wavFile)
             .toFormat(config.ffmpeg.format)
-            .on('end', async () => {
+            .on('end', () => {
                 const ffmpegEndTime = Date.now();
-                Deno.removeSync(wavFile);
-                await sendFile(respondee, responder, finalFile, decodedLink, truncated, duration, [renderStartTime, renderEndTime], [ffmpegStartTime, ffmpegEndTime], textContent);
-                Deno.removeSync(finalFile);
+                // await sendFile(respondee, responder, finalFile, decodedLink, truncated, duration, [renderStartTime, renderEndTime], [ffmpegStartTime, ffmpegEndTime], textContent);
+                successCallback([ ffmpegStartTime, ffmpegEndTime ]);
+                // Deno.removeSync(finalFile);
+                // Deno.removeSync(wavFile);
+                resolve([ ffmpegStartTime, ffmpegEndTime ]);
             })
-            .on('error', async (error, o, e) => {
+            .on('error', (error, o, e) => {
                 Deno.remove(finalFile).then(() => { }).catch(() => { }); // Just try to delete the file, doesn't matter if it succeeds
-                printFfmpegError(error, o ?? '(null)', e ?? '(null)')
-                await sendFile(respondee,responder,  wavFile, decodedLink, truncated, duration, [renderStartTime, renderEndTime], undefined, textContent);
-                Deno.removeSync(wavFile);
+                printFfmpegError(error, o ?? '(null)', e ?? '(null)');
+                // await sendFile(respondee,responder,  wavFile, decodedLink, truncated, duration, [renderStartTime, renderEndTime], undefined, textContent);
+                errorCallback(error, o, e);
+                // Deno.removeSync(wavFile);
+                resolve([ ffmpegStartTime ]);
             })
+        if(bitrate !== null) {
+            conversion.audioBitrate(bitrate);
+        }
+        if(duration !== null) {
+            conversion.duration(duration);
+        }
         for (const key in config.ffmpeg.extra) {
             const value = config.ffmpeg.extra[key];
             //@ts-ignore - That probably means something.
             conversion[key].apply(conversion, value)
         }
         conversion.save(finalFile);
+    });
+}
+
+async function sendRender(wavFile: string, respondee: Message | CommandInteraction, responder: Message | InteractionResponse | null, decodedLink: DecodedLink, context: Context, duration: number, renderStartTime: number, renderEndTime: number, textContent?: string) {
+    const finalFile = wavFile.replace('.wav', config.ffmpeg.fileExtension);
+    if (config.ffmpeg.enable) {
+        responder?.edit("Running FFmpeg, please wait...");
+        const errorCallback = async (error: Error)=>{
+            context.ffmpegError = error;
+            const result = await sendFile(respondee, responder, wavFile, decodedLink, context, duration, [renderStartTime, renderEndTime], undefined, textContent);
+            if(result!==null) {
+                fileLengthError(responder, result.fileSize, result.duration, result.bitrate ?? 0, context);
+            }
+        };
+        runFFmpeg(wavFile, finalFile, null, config.ffmpeg.bitrate, async (time: [ number, number ])=>{
+            const result1 = await sendFile(respondee, responder, finalFile, decodedLink, context, duration, [renderStartTime, renderEndTime], time, textContent);
+            if(result1!==null) {
+                context.fileSizeBitrateReduction = result1.bitrate ?? config.ffmpeg.bitrate ?? 125;
+                responder?.edit(`File too large! Reducing bitrate to ${context.fileSizeBitrateReduction}k...`);
+                runFFmpeg(wavFile, finalFile, null, context.fileSizeBitrateReduction, async (time: [ number, number ])=>{
+                    const result2 = await sendFile(respondee, responder, finalFile, decodedLink, context, duration, [renderStartTime, renderEndTime], time, textContent);
+                    if(result2!==null) {
+                        context.fileSizeTruncation = result2.duration;
+                        responder?.edit(`File still too large!? Truncating to ${result2.duration} seconds...`);
+                        runFFmpeg(wavFile, finalFile, result2.duration, context.fileSizeBitrateReduction, async (time: [ number, number ])=>{
+                            const result3 = await sendFile(respondee, responder, finalFile, decodedLink, context, duration, [renderStartTime, renderEndTime], time, textContent);
+                            if(result3!==null) {
+                                fileLengthError(responder, result3.fileSize, result1.duration, context.fileSizeBitrateReduction!, context);
+                            }
+                            Deno.removeSync(wavFile);
+                            Deno.removeSync(finalFile);
+                        }, errorCallback);
+                    } else {
+                        Deno.removeSync(wavFile);
+                        Deno.removeSync(finalFile);
+                    }
+                }, errorCallback);
+            } else {
+                Deno.removeSync(wavFile);
+                Deno.removeSync(finalFile);
+            }
+        }, errorCallback);
     } else {
-        await sendFile(respondee, responder, wavFile, decodedLink, truncated, duration, [renderStartTime, renderEndTime], undefined, textContent);
+        const result = await sendFile(respondee, responder, wavFile, decodedLink, context, duration, [renderStartTime, renderEndTime], undefined, textContent);
+        if(result!==null) {
+            fileLengthError(responder, result.fileSize, result.duration, 0, context);
+        }
         Deno.removeSync(wavFile);
     }
 }
@@ -320,6 +414,12 @@ function getMode(mode: BytebeatMode): bytebeatModes {
 export async function renderCodeWrapperInteraction(interaction: CommandInteraction, link: string, duration = 30): Promise<void> {
     const decodedLink: DecodedLink | null = await decodeLink(link,interaction);
     if(decodedLink===null) return;
+    const context: Context = {
+        timeTruncation: null,
+        fileSizeBitrateReduction: null,
+        fileSizeTruncation: null,
+        ffmpegError: null
+    };
     if(!(await checkSampleLength(duration,decodedLink.songData.sampleRate,interaction))) return;
     const outputMessage = await interaction.reply({ content: "Rendering started, Please wait...\n-# "+getSplash(), allowedMentions: { repliedUser: false } });
     const renderStartTime = Date.now();
@@ -334,8 +434,9 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
     prepareWorker(worker, (data: {finished: renderOutputType}) => {
         const { error, file: wavFile, truncated } = data.finished;
         const renderEndTime = Date.now();
+        context.timeTruncation = truncated;
         if (error == null) {
-            sendRender(wavFile,interaction,outputMessage,decodedLink,truncated,duration,renderStartTime,renderEndTime,"Output:");
+            sendRender(wavFile,interaction,outputMessage,decodedLink,context,duration,renderStartTime,renderEndTime,"Output:");
         } else {
             renderError(interaction,outputMessage,error);
         }
@@ -347,6 +448,12 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
 
 export async function renderCodeWrapperFile(interaction: CommandInteraction, code: string, sampleRate: number, mode: BytebeatMode, duration = 30, outputMessage: InteractionResponse<boolean>): Promise<void> {
     try {
+        const context: Context = {
+            timeTruncation: null,
+            fileSizeBitrateReduction: null,
+            fileSizeTruncation: null,
+            ffmpegError: null
+        };
         if(!(await checkSampleLength(duration,sampleRate,interaction))) return;
         await outputMessage.edit({ content: "Rendering started, please wait...\n-# "+getSplash(), allowedMentions: { repliedUser: false } });
         const renderStartTime = Date.now();
@@ -360,9 +467,10 @@ export async function renderCodeWrapperFile(interaction: CommandInteraction, cod
         } });
         prepareWorker(worker, (data: {finished: renderOutputType}) => {
             const { error, file: wavFile, truncated } = data.finished;
+            context.timeTruncation = truncated;
             const renderEndTime = Date.now();
             if (error == null) {
-                sendRender(wavFile,interaction,outputMessage,{songData: {code, sampleRate, mode}, playerData: bytebeatPlayers[0]},truncated,duration,renderStartTime,renderEndTime,"Output:");
+                sendRender(wavFile,interaction,outputMessage,{songData: {code, sampleRate, mode}, playerData: bytebeatPlayers[0]},context,duration,renderStartTime,renderEndTime,"Output:");
             } else {
                 renderError(interaction, outputMessage, error);
             }
@@ -389,6 +497,12 @@ export async function renderCodeWrapperMessage(message: Message, link: string, c
             // We don't have permission to send messages, so stop now
             return;
         }
+        const context: Context = {
+            timeTruncation: null,
+            fileSizeBitrateReduction: null,
+            fileSizeTruncation: null,
+            ffmpegError: null
+        };
         const renderStartTime = Date.now();
         const worker = new Worker('./rendererWorker.ts', { workerData: {
             UC: decodedLink.playerData.hasAdditions,
@@ -400,9 +514,10 @@ export async function renderCodeWrapperMessage(message: Message, link: string, c
         } });
         prepareWorker(worker, (data: {finished: renderOutputType}) => {
             const { error, file: wavFile, truncated } = data.finished;
+            context.timeTruncation = truncated;
             const renderEndTime = Date.now();
             if (error == null) {
-                sendRender(wavFile,message,outputMessage,decodedLink,truncated,duration,renderStartTime,renderEndTime, "Preview for link" + (count ? " "+count : "") + ":");
+                sendRender(wavFile,message,outputMessage,decodedLink,context,duration,renderStartTime,renderEndTime, "Preview for link" + (count ? " "+count : "") + ":");
             } else {
                 renderError(message, outputMessage, error);
             }

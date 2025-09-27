@@ -40,11 +40,9 @@ export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody =
     ]
 };
 
-export async function execute(interaction: import('discord.js').CommandInteraction): Promise<void> {
+export async function execute(interaction: import('discord.js').ChatInputCommandInteraction): Promise<void> {
     if(!(await checkBlacklist(interaction,true))) return;
-    // @ts-expect-error - On my system tpyes for options doesn't exist for some reasonm, but options itself does. If you get an error on this line LET ME KNOW IMMEADIATELY.
     const link: string = String(interaction.options.get('link',true).value||'invalid');
-    // @ts-expect-error - On my system tpyes for options doesn't exist for some reasonm, but options itself does. If you get an error on this line LET ME KNOW IMMEADIATELY.
     const duration: number = Math.abs(Number(interaction.options.get('duration',false)?.value??0))||renderbotConfig.audio.defaultSeconds;
     await renderCodeWrapperInteraction(interaction,link,duration);
 }

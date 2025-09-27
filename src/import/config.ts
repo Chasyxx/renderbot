@@ -31,4 +31,4 @@ export type configType = {
     bitDepth: 8 | 16
 };
 
-export const renderbotConfig: configType = configData;
+export const renderbotConfig: configType = configData as configType;

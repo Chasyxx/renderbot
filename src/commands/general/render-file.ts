@@ -1,5 +1,5 @@
 //     Renderbot: a Discord bot for rendering bytebeat codes
-//     Copyright (C) 2024 Chase Taylor
+//     Copyright (C) 2024, 2025 Chase Taylor
 
 //     This program is free software: you can redistribute it and/or modify
 //     it under the terms of the GNU Affero General Public License as published
@@ -18,7 +18,7 @@
 
 export {};
 
-import { renderCodeWrapperFile } from '../../generateRender.ts';
+import { renderCodeWrapperFile, checkSampleLength } from '../../generateRender.ts';
 import { renderbotConfig} from '../../import/config.ts';
 import { checkBlacklist } from '../../import/hash.ts';
 import { EmbedBuilder } from 'discord.js';
@@ -62,13 +62,18 @@ export async function execute(interaction: import('discord.js').CommandInteracti
     if(!(await checkBlacklist(interaction,true))) return;
     // const link: string = String(interaction.options.get('link',true).value||'invalid');
     // await renderCodeWrapperInteraction(interaction,link,duration);
+    // @ts-expect-error - On my system tpyes for options doesn't exist for some reasonm, but options itself does. If you get an error on this line LET ME KNOW IMMEADIATELY.
     const mode1 = interaction.options.get('mode',false)?.value ?? "byte";
     let mode: BytebeatMode = "Bytebeat";
     if(mode1==="signed") mode = "Signed Bytebeat";
     else if(mode1==="float") mode = "Floatbeat";
     else if(mode1==="func") mode = "Funcbeat";
-    const sampleRate: number = Math.abs(Number(interaction.options.get('samplerate',false)?.value??0))||renderbotConfig.audio.defaultSeconds;
+    // @ts-expect-error - On my system tpyes for options doesn't exist for some reasonm, but options itself does. If you get an error on this line LET ME KNOW IMMEADIATELY.
+    const sampleRate: number = Math.abs(Number(interaction.options.get('samplerate',false)?.value??0))||8000;
+    // @ts-expect-error - On my system tpyes for options doesn't exist for some reasonm, but options itself does. If you get an error on this line LET ME KNOW IMMEADIATELY.
     const duration: number = Math.abs(Number(interaction.options.get('duration',false)?.value??0))||renderbotConfig.audio.defaultSeconds;
+    if(!(await checkSampleLength(duration,sampleRate,interaction))) return;
+    // @ts-expect-error - On my system tpyes for options doesn't exist for some reasonm, but options itself does. If you get an error on this line LET ME KNOW IMMEADIATELY.
     const url: URL = new URL(interaction.options.get('file',true)!.attachment!.url);
     const message = await interaction.reply("Downloading code, this might take a moment...");
     fetch(url).then((v)=>{

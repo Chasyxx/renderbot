@@ -1,5 +1,5 @@
 //     Renderbot: a Discord bot for rendering bytebeat codes
-//     Copyright (C) 2024 Chase Taylor
+//     Copyright (C) 2024, 2025 Chase Taylor
 
 //     This program is free software: you can redistribute it and/or modify
 //     it under the terms of the GNU Affero General Public License as published
@@ -24,7 +24,7 @@ import { Worker } from 'node:worker_threads';
 import { progressBar, Modes as bytebeatModes, renderOutputType, formatByteCount } from './bytebeatToAudio.ts';
 import { renderbotConfig as config } from './import/config.ts';
 import { BytebeatMode } from './import/bytebeatdata.ts';
-import ffmpeg from 'fluent-ffmpeg'
+import ffmpeg from 'fluent-ffmpeg'; // TODO: Remove use of this package! It is no longer supported!
 import { bytebeatPlayers, DecodedLink, decodeLinkToSongData } from './players/root.ts';
 import { getSplash } from './splashes.ts';
 
@@ -237,7 +237,7 @@ async function decodeLink(link: string, respondee: Message | CommandInteraction,
     return data;
 }
 
-async function checkSampleLength(seconds: number, samplerate: number, respondee: Message | CommandInteraction): Promise<boolean> {
+export async function checkSampleLength(seconds: number, samplerate: number, respondee: Message | CommandInteraction): Promise<boolean> {
     if (seconds * samplerate > config.audio.sampleLimit) {
         await respondee.reply({
             embeds: [
@@ -333,7 +333,8 @@ function runFFmpeg(wavFile: string, finalFile: string, duration: number | null, 
                 // Deno.removeSync(wavFile);
                 resolve([ ffmpegStartTime, ffmpegEndTime ]);
             })
-            .on('error', (error, o, e) => {
+            // @ts-ignore - i know these exist. But apparently this is deprecated and TS thinks they don't.
+            .on('error', (error: Error, o: string | null, e: string | null) => {
                 Deno.remove(finalFile).then(() => { }).catch(() => { }); // Just try to delete the file, doesn't matter if it succeeds
                 printFfmpegError(error, o ?? '(null)', e ?? '(null)');
                 // await sendFile(respondee,responder,  wavFile, decodedLink, truncated, duration, [renderStartTime, renderEndTime], undefined, textContent);
@@ -454,7 +455,6 @@ export async function renderCodeWrapperFile(interaction: CommandInteraction, cod
             fileSizeTruncation: null,
             ffmpegError: null
         };
-        if(!(await checkSampleLength(duration,sampleRate,interaction))) return;
         await outputMessage.edit({ content: "Rendering started, please wait...\n-# "+getSplash(), allowedMentions: { repliedUser: false } });
         const renderStartTime = Date.now();
         const worker = new Worker('./rendererWorker.ts', { workerData: {

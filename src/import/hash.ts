@@ -1,3 +1,21 @@
+//     Renderbot: a Discord bot for rendering bytebeat codes
+//     Copyright (C) 2024, 2025 Chase Taylor
+
+//     This program is free software: you can redistribute it and/or modify
+//     it under the terms of the GNU Affero General Public License as published
+//     by the Free Software Foundation, either version 3 of the License, or
+//     (at your option) any later version.
+
+//     This program is distributed in the hope that it will be useful,
+//     but WITHOUT ANY WARRANTY; without even the implied warranty of
+//     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//     GNU Affero General Public License for more details.
+
+//     You should have received a copy of the GNU Affero General Public License
+//     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+//     Email contact is at creset200@gmail.com
+
 import { Message, EmbedBuilder, CommandInteraction } from "discord.js";
 export {};
 
@@ -17,7 +35,7 @@ export async function checkServerBlacklist(src: CommandInteraction | Message): P
         builder.setTitle("This server has been blocked by RenderBot");
         builder.setDescription("Please remove the bot.");
         builder.setColor(0xed4f4f);
-        try { src.reply({ embeds: [ builder ], ephemeral: false }); } catch { /* idc */ };
+        src.reply({ embeds: [ builder ], ephemeral: false }).catch((e)=>{ console.error(e) });
         return false;
     }
     return true;
@@ -27,7 +45,7 @@ export async function checkChannelBlacklist(src: CommandInteraction | Message, s
     const hash = await hashString(src.channelId);
     if(config.disabledChannels.includes(hash)) {
         if(send) {
-            try { src.reply({ content: "Sorry, you can't use me in this channel!", ephemeral: true }); } catch { /* idc */ };
+            src.reply({ content: "Sorry, you can't use me in this channel!", ephemeral: true }).catch((e)=>{ console.error(e) });
         }
         return false;
     }

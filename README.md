@@ -26,9 +26,9 @@ These options **do not affect the CLI.** They only affect how the bot functional
   * **terminal**: True has a colored progress bar that stays on one line, while false has a basic progress bar that prints on a new line (designed for the systemd journal).
   * **barSize**: How big the progress bar is.
 * **audio**: Various audio settings.
-  * **sampleLimit**: How many samples are allowed to be rendered. For N seconds of samplerate S Hz, S*N will get you the value. The default value is 1 minute of 48kHz audio. **You should probably only go up to 9000000 to meet file size limits if you don't use the FFmpeg feature.**
+  * **sampleLimit**: How many samples are allowed to be rendered. For N seconds of samplerate S Hz, S*N will get you the value. The default value is 1 minute of 48kHz audio. **You should probably only go up to 9900000 to meet file size limits if you don't use the FFmpeg feature.**
   * **defaultSeconds**: The default number of seconds for the `/render` command, and for message auto-rendering, where it may get shortened to meet the sample limit if needed.
-  * **maximumProcessingTime**: The amount of seconds the bot will try to process a code. If it takes longer it'll stop there and output what it could process in that time, giving a notice it was truncated. The default is 15 minutes.
+  * **maximumProcessingTime**: The amount of seconds the bot will try to process a code. If it takes longer it'll stop there and output what it could process in that time, giving a notice it was truncated. The default is 14 minutes (Make sure it's shorter than Discord's 15 minute command limit).
 * **credit**: Whehter to send a mention for the user for either a **message** or when the `/render` **command** is run.
 * **ffmpeg**: Options for FFmpeg conversion. Mainly for file size reasons.
   * **enable**: Set this to false if you don't have FFmpeg or don't want to use it. This causes RenderBot to directly give .wav files.
@@ -37,6 +37,7 @@ These options **do not affect the CLI.** They only affect how the bot functional
   * **fileExtension**: The file extension for the file, in case it's different from the FFmpeg format.
   * **bitrate**: Bitrate of the output. Default 125. You can set this to `null`.
   * **extra**: Any extra function calls to the FFmpeg converter.
+* **bitDepth**: either 8 or 16. 16 doubles the wav file size (setting the MAX max (yes twice) samples without ffmpeg to 4900000) but gives MUCH higher quality.
 
 ## Execution
 To execute the bot, use `deno run -REN --allow-write=../render/ --allow-run=/usr/bin/ffmpeg main.ts` inside of `src`. I wished to specifically use `--allow-net=discord.com:443,gateway.discord.gg:443,cdn.discordapp.com:443`, but the bot eventually contacts region-specific servers, so a generic `--allow-net` is probably needed, and at some point generic env access is needed too. And workers seem to bring up a bunch of read permissions prompts too, unavoidable without full read permissions for some godforsaken reason.

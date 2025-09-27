@@ -18,7 +18,7 @@
 
 export {};
 
-import { EventEmitter } from 'node:events';
+// import { EventEmitter } from 'node:events';
 const chasyxxPlayerAdditions = {
     /*bit*/        "bitC": function (x: number, y: number, z: number) { return x & y ? z : 0 },
     /*bit reverse*/"br": function (x: number, size: number = 8) {
@@ -35,22 +35,6 @@ const chasyxxPlayerAdditions = {
     /*converts t into a string composed of it's bits, regex's that*/"regG": function (t: number, X: RegExp) { return X.test(t.toString(2)) }
     /*corrupt sound"crpt": function(x,y=8) {return chyx.br(chyx.br(x,y)+t,y)^chyx.br(t,y)},
     decorrupt sound"decrpt": function(x,y=8) {return chyx.br(chyx.br(x^chyx.br(t,y),y)-t,y)},*/
-}
-
-function write32(input: number): Uint8Array {
-    // 0x12345678 -> [ 78 56 34 12 ]
-    return Uint8Array.from([ input>>0&0xFF, input>>8&0xFF, input>>16&0xFF, input>>24&0xFF ]);;
-}
-
-function write16(input: number): Uint8Array {
-    // 0x1234 -> [ 34 12 ]
-    return Uint8Array.from([ input>>0&0xFF, input>>8&0xFF ]);
-}
-
-function formatUTF8(input: string): Uint8Array {
-    const dummy: Uint8Array = Uint8Array.from({length: input.length});
-    new TextEncoder().encodeInto(input,dummy);
-    return dummy;
 }
 
 /**
@@ -106,7 +90,7 @@ export function formatByteCount(bytes: number) {
     return power1024 + "/" + power1000;
 }
 
-export const EE = new EventEmitter();
+export const ET = new EventTarget();
 
 type codeValue = (keyof typeof Math | keyof typeof chasyxxPlayerAdditions | typeof Math.floor | typeof globalThis);
 
@@ -185,18 +169,18 @@ try {
  */
 export function renderCode(
     samplerate: number, mode: Modes, codeString: string, filename: string,
-    lengthValue: number = 10, stereo: boolean | null,
+    lengthValue: number = 10, stereo: boolean | null, bitDepth: 8 | 16 = 8,
     useChasyxxPlayerAdditions: boolean, printStats: 0 | 1 | 2,
-    truncate: number = 300, printMillis: number = 100): renderOutputType {
+    truncate: number = 300, printMillis: number = 100,): renderOutputType {
 
     const sampleCount = Math.max(samplerate * lengthValue, samplerate);
-    if (printStats == 2) EE.emit('len', sampleCount);
+    if (printStats == 2) ET.dispatchEvent(new CustomEvent("len",{detail: sampleCount}));
     let getValues: (x: number) => number;
     switch (mode) {
-        case Modes.Bytebeat: default: getValues = (x: number) => (x & 255); break;
-        case Modes.SignedBytebeat: getValues = (x: number) => (x + 128 & 255); break;
+        case Modes.Bytebeat: default: getValues = (x: number) => (x & 255)/127.5-1; break;
+        case Modes.SignedBytebeat: getValues = (x: number) => (x + 128 & 255)/127.5-1; break;
         case Modes.Floatbeat:
-        case Modes.Funcbeat: getValues = (x: number) => Math.max(-1, Math.min(1, x)) * 127.5 + 128 & 255; break;
+        case Modes.Funcbeat: getValues = (x: number) => Math.max(-1, Math.min(1, x)); break;
     }
     let codeFunc: ((t: number, SRoI: number | micSampleType, samples: number, I: micSampleType) => number[] | number) = () => { return 0; };
     let truncated = false;
@@ -204,7 +188,7 @@ export function renderCode(
     let sampleIndex = 0;
     if (printStats == 2) {
         
-        EE.emit('compile', codeString.length);
+        ET.dispatchEvent(new CustomEvent("compile",{detail: codeString.length}));
     } else if (printStats == 1) {
         console.log(`Compiling a code of length ${codeString.length}`);
         console.time('Compilation');
@@ -214,7 +198,7 @@ export function renderCode(
             const out = new Function(...params, codeString).bind(globalThis, ...values);
             if (printStats == 2) {
                 
-                EE.emit('compileFuncbeat');
+                ET.dispatchEvent(new CustomEvent("compileFuncbeat"));
             } else if (printStats == 1) {
                 console.log(`Funcbeat sub-compilation...`);
                 console.time('Funcbeat');
@@ -232,9 +216,9 @@ export function renderCode(
         }
         if (printStats == 2) {
             
-            EE.emit('prep');
+            ET.dispatchEvent(new CustomEvent("prep"));
             
-            EE.emit('index', 0);
+            ET.dispatchEvent(new CustomEvent("index",{detail: 0}));
         } else if (printStats == 1) {
             console.timeEnd('Compilation');
             console.log(`${progressBar(0, 1, 20, true)} 0 / ${sampleCount}`);
@@ -260,7 +244,9 @@ export function renderCode(
             return { error: "Compilation error: " + String(error), file: null, truncated: null };
         }
     }
-    const buffer: Uint8Array = Uint8Array.from({length: 44 + (sampleCount * (stereo ? 2 : 1))});
+    const songByteCount = (sampleCount * (stereo ? 2 : 1) * bitDepth / 8);
+    const buffer: ArrayBuffer = new ArrayBuffer(44 + songByteCount);
+    const dataView = new DataView(buffer, 44, songByteCount);
     const lastValue: number[] = [0, 0];
     const startTime = Date.now();
     let lastTime = startTime;
@@ -275,7 +261,7 @@ export function renderCode(
             lastTime = time;
             if (printStats == 2) {
                 
-                EE.emit('index', sampleIndex);
+                ET.dispatchEvent(new CustomEvent("index",{detail: sampleIndex}));
             } else if (printStats == 1) {
                 console.log(`\x1b[1A${progressBar(sampleIndex, sampleCount, Deno.consoleSize().columns - String(sampleIndex).length - String(sampleCount).length - 7, true)} ${sampleIndex} / ${sampleCount}`);
             }
@@ -302,40 +288,63 @@ export function renderCode(
                 out = NaN;
             }
             if (stereo) {
-                const bufferIndex = sampleIndex * 2 + 44;
                 if (Array.isArray(out)) {
-                    if (!isNaN(out[0] ?? NaN)) lastValue[0] = getValues(out[0]) & 255;
-                    if (!isNaN(out[1] ?? NaN)) lastValue[1] = getValues(out[1]) & 255;
-                    buffer[bufferIndex] = lastValue[0];
-                    buffer[bufferIndex + 1] = lastValue[1];
+                    if (!isNaN(out[0] ?? NaN)) lastValue[0] = getValues(out[0]);
+                    if (!isNaN(out[1] ?? NaN)) lastValue[1] = getValues(out[1]);
+                    if(bitDepth===16) {
+                        dataView.setUint16(sampleIndex*4,lastValue[0]*32767.5&65535,true);
+                        dataView.setUint16(sampleIndex*4+2,lastValue[1]*32767.5&65535,true);
+                    } else {
+                        dataView.setUint8(sampleIndex*2,lastValue[0]*127.5+128&255);
+                        dataView.setUint8(sampleIndex*2+1,lastValue[1]*127.5+128&255);
+                    }
                 } else {
                     // Copy to both signals
-                    if (!isNaN(out ?? NaN)) lastValue[0] = lastValue[1] = getValues(out) & 255;
-                    buffer[bufferIndex] = buffer[bufferIndex + 1] = lastValue[0];
+                    if (!isNaN(out ?? NaN)) lastValue[0] = lastValue[1] = getValues(out);
+                    if(bitDepth===16) {
+                        dataView.setUint16(sampleIndex*4,lastValue[0]*32767.5&65535,true);
+                        dataView.setUint16(sampleIndex*4+2,lastValue[1]*32767.5&65535,true);
+                    } else {
+                        dataView.setUint8(sampleIndex*2,lastValue[0]*127.5+128&255);
+                        dataView.setUint8(sampleIndex*2+1,lastValue[1]*127.5+128&255);
+                    }
                 }
             } else {
-                const bufferIndex = sampleIndex + 44;
                 if (Array.isArray(out)) {
                     // Downmix to mono 
                     let channels: number = 0;
                     if (!isNaN(out[0] ?? NaN)) {
-                        lastValue[0] = getValues(out[0]) & 255;
+                        lastValue[0] = getValues(out[0]);
                         channels |= 1;
                     }
                     if (!isNaN(out[1] ?? NaN)) {
-                        lastValue[1] = getValues(out[1]) & 255;
+                        lastValue[1] = getValues(out[1]);
                         channels |= 2;
                     }
-                    if (channels == 3) {
-                        buffer[bufferIndex] = lastValue[0] / 2 + lastValue[1] / 2 & 255;
-                    } else if (channels == 2) {
-                        buffer[bufferIndex] = lastValue[1];
+                    if(bitDepth===16) {
+                        if (channels == 3) {
+                            dataView.setUint16(sampleIndex*2,lastValue[0] * 16383.25 + lastValue[1] * 16383.25 + 32768 & 65535);
+                        } else if (channels == 2) {
+                            dataView.setUint16(sampleIndex*2,lastValue[1]*32767.5&65535,true);
+                        } else {
+                            dataView.setUint16(sampleIndex*2,lastValue[0]*32767.5&65535,true);
+                        }
                     } else {
-                        buffer[bufferIndex] = lastValue[0];
+                        if (channels == 3) {
+                            dataView.setUint8(sampleIndex,lastValue[0] * 63.25 + lastValue[1] * 63.25 + 128 & 255);
+                        } else if (channels == 2) {
+                            dataView.setUint8(sampleIndex,lastValue[1]*127.5+128&255);
+                        } else {
+                            dataView.setUint8(sampleIndex,lastValue[0]*127.5+128&255);
+                        }
                     }
                 } else {
-                    if (!isNaN(out ?? NaN)) lastValue[0] = lastValue[1] = getValues(out) & 255;
-                    buffer[bufferIndex] = lastValue[0];
+                    if (!isNaN(out ?? NaN)) lastValue[0] = lastValue[1] = getValues(out);
+                    if(bitDepth===16) {
+                        dataView.setUint16(sampleIndex*2,lastValue[0]*32767.5&65535,true);
+                    } else {
+                        dataView.setUint8(sampleIndex,lastValue[0]*127.5+128&255);
+                    }
                 }
             }
         } catch { /* TODO: cli would print an error here */ }
@@ -344,40 +353,39 @@ export function renderCode(
         console.log(`\x1b[1A${progressBar(1, 1, Deno.consoleSize().columns - String(sampleIndex).length * 2 - 7, true)} ${sampleIndex} / ${sampleIndex}`);
         console.timeEnd("Rendering");
     }
-    let endIndex = buffer.length - 1;
-    const endValue = buffer[endIndex];
-    if(!stereo)
-        while (buffer[endIndex] == endValue && endIndex > samplerate) --endIndex;
 
-    buffer.set(formatUTF8('RIFF'),0);                      // RIFF header
-    buffer.set(write32(buffer.length - 8),4);              // chunk length
-    buffer.set(formatUTF8('WAVEfmt '),8);                  // chunk type, format info
-    buffer.set(write32(16),16);                            // format length
-    buffer.set(write16(1),20);                             // PCM marker
-    buffer.set(write16(stereo ? 2 : 1),22);                // channel count
-    buffer.set(write32(samplerate),24);                    // sample rate
-    buffer.set(write32(samplerate * (stereo ? 2 : 1)),28); // samplerate*channels*bitdepth/8
-    buffer.set(write16(stereo ? 2 : 1),32);                // channels*bitdepth/8
-    buffer.set(write16(8),34);                             // bit depth
-    buffer.set(formatUTF8('data'),36);                     // data chunk
-    buffer.set(write32(buffer.length - 44),40);            // chunk length
+    const headerView = new DataView(buffer,0,44);
+
+    headerView.setUint32(0,  0x52494646);                                        // "RIFF"
+    headerView.setUint32(4,  buffer.byteLength-8,true);                          // Size of all data beyond this point
+    headerView.setUint32(8,  0x57415645);                                        // "WAVE"
+    headerView.setUint32(12, 0x666d7420);                                        // "fmt "
+    headerView.setUint32(16, 16,true);                                           // The format chunk size is 16 bytes long
+    headerView.setUint16(20, 1,true);                                            // PCM marker
+    headerView.setUint16(22, stereo ? 2 : 1,true);                               // Channel count
+    headerView.setUint32(24, samplerate,true);                                   // Sample rate
+    headerView.setUint32(28, samplerate * (stereo ? 2 : 1) * bitDepth / 8,true); // samplerate*channels*bitdepth/8
+    headerView.setUint16(32, (stereo ? 2 : 1) * bitDepth / 8,true);              // Same thing without samplerate
+    headerView.setUint16(34, bitDepth,true);                                     // Bit depth
+    headerView.setUint32(36, 0x64617461);                                        // "data"
+    headerView.setUint32(40, songByteCount);                                     // Song byte count (size of the data chunk)
 
     const outputFile = filename;
 
     const headerString: string = 
-    `RIFF-${(buffer.length - 8).toString(16).padStart(8,'0')}-WAVEfmt-${stereo?2:1}ch-${samplerate.toString(16).padStart(8,'0')}Hz-${(samplerate*(stereo?2:1)).toString(16).padStart(8,'0')}Bps-${stereo?2:1}ba-data-${(buffer.length - 8).toString(16).padStart(8,'0')}`;
+    `Size 0x${buffer.byteLength.toString(16)} - ${stereo ? 2 : 1} channels - samplerate ${samplerate} - byterate ${samplerate * (stereo ? 2 : 1) * bitDepth / 8} - bytes per sample ${(stereo ? 2 : 1) * bitDepth / 8} - ${bitDepth} bits little endian`;
 
     if (printStats == 2) {
         if(!truncated)
             
-            EE.emit('index', sampleCount);
+            ET.dispatchEvent(new CustomEvent("index",{detail: sampleCount}));
         
-        EE.emit('done', headerString, outputFile, formatByteCount(buffer.length));
+        ET.dispatchEvent(new CustomEvent("done",{detail: {headerString, outputFile, bytes: formatByteCount(buffer.byteLength)}}));
     } else if (printStats == 1) {
-        console.log(`HEADER ${headerString}`);
-        console.log(`FILE ${outputFile} SIZE ${formatByteCount(buffer.length)}`);
+        console.log(headerString);
+        console.log(`FILE ${outputFile} SIZE ${formatByteCount(buffer.byteLength)}`);
     }
 
-    Deno.writeFileSync(outputFile, buffer);
+    Deno.writeFileSync(outputFile, new Uint8Array(buffer));
     return { error: null, file: outputFile, truncated };
 }

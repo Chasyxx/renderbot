@@ -16,7 +16,7 @@
 
 //     Email contact is at creset200@gmail.com
 
-import { renderCode, EE } from "./bytebeatToAudio.ts";
+import { renderCode, ET } from "./bytebeatToAudio.ts";
 import { workerData, isMainThread, parentPort } from "node:worker_threads";
 import { renderbotConfig } from "./import/config.ts";
 
@@ -25,27 +25,31 @@ if (isMainThread) {
 } else {
   let maxLength = 4096;
 
-  EE.on("len", (m: number) => {
-    maxLength = m;
+  ET.addEventListener("len", (_event) => {
+    const event = _event as CustomEvent;
+    maxLength = event.detail;
   });
 
-  EE.on("compile", (len: number) => {
-    parentPort!.postMessage({ status: "compile", len });
+  ET.addEventListener("compile", (_event) => {
+    const event = _event as CustomEvent;
+    parentPort!.postMessage({ status: "compile", len: event.detail });
   });
 
-  EE.on("compileFuncbeat", () => {
+  ET.addEventListener("compileFuncbeat", () => {
     parentPort!.postMessage({ status: "funcbeat" });
   });
 
-  EE.on("index", (idx: number) => {
-    parentPort!.postMessage({ index: idx, max: maxLength });
+  ET.addEventListener("index", (_event) => {
+    const event = _event as CustomEvent;
+    parentPort!.postMessage({ index: event.detail, max: maxLength });
   });
 
-  EE.on("done", (h: number, f: number, s: number) => {
-    parentPort!.postMessage({ status: "done", h, f, s });
+  ET.addEventListener("done", (_event) => { // h: number, f: number, s: number
+    const event = _event as CustomEvent;
+    parentPort!.postMessage({ status: "done", h: event.detail.headerString, f: event.detail.outputFile, s: event.detail.bytes });
   });
 
-  EE.on("prep", () => {
+  ET.addEventListener("prep", () => {
     parentPort!.postMessage({ status: "prep" });
   });
 
@@ -58,6 +62,7 @@ if (isMainThread) {
       workerData.N,
       workerData.D,
       null,
+      renderbotConfig.bitDepth,
       workerData.UC,
       2,
       renderbotConfig.audio.maximumProcessingTime,

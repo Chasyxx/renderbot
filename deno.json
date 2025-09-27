@@ -1,0 +1,8 @@
+{
+    "imports": {
+        "@std/cli": "jsr:@std/cli@^1.0.22",
+        "discord.js": "npm:discord.js@^14.13.0",
+        "fluent-ffmpeg": "npm:fluent-ffmpeg@^2.1.3",
+        "pako": "npm:pako@^2.1.0"
+    }
+}

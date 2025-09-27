@@ -18,122 +18,133 @@
 //     Email contact is at creset200@gmail.com
 
 import { renderCode, Modes } from "../bytebeatToAudio.ts";
-import { readFile } from "node:fs/promises";
-import process from "node:process";
+import { parseArgs } from "@std/cli";
 
-let sampleRate: number = 8000;
-let mode: Modes = Modes.Bytebeat;
-let stereo: boolean | null = null;
-let seconds: number = 15;
-let usagePrinted: boolean = false;
+const cliArguments = parseArgs(Deno.args);
 
 function printUsage(f: (text: string) => void = console.warn) {
-    if(usagePrinted) return;
-    usagePrinted = true;
-    f(`Usage: node ${process.argv[1]} <options> <infile> <outfile>`);
-    f(`e.g. node ${process.argv[1]} samplerate:48000,mode:funcbeat bootsinbed.js bootsinbed.wav`);
+    f(`Usage: deno cli.ts <options> <infile> <outfile>`);
+    f(`e.g. deno cli.ts -r 48000 -m funcbeat bootsinbed.js bootsinbed.wav`);
     f("");
     f("Possible arguments:");
-    f("    r, samplerate: (8000) Samplerate of the track.");
-    f("    m, mode      : (byte) Sound mode, can be 'byte' 'signed' 'float' 'func'.");
-    f("    s, stereo    : (x)    Explicitly set stereo, can be 'y', 'n', or 'x'.");
+    f("   -r, --samplerate: (8000) Samplerate of the track.");
+    f("   -m, --mode      : (byte) Sound mode, can be 'byte' 'signed' 'float' 'func'.");
+    f("   -s, --stereo    : (x)    Explicitly set stereo, can be 'y', 'n', or 'x'.");
     f("                      ... Automatically decide if 'x'.");
-    f("    t, time      : (15)   Render length in seconds.");
+    f("   -t, --time      : (60)   Render length in seconds.");
+    f("   -d, --depth     : (16)   Bit depth.");
 }
 
-if (process.argv.length != 5) {
-    printUsage(console.log);
-} else {
+Deno.exitCode = (function main(): number {
+    if (cliArguments["--help"]||cliArguments["-h"]||cliArguments._.length!==2) {
+        printUsage(console.log);
+        return 1;
+    }
     // Parse command-line arguments.
 
-    const inFile = process.argv[3];
-    const outFile = process.argv[4];
+    const inFile = cliArguments._[0];
+    const outFile = cliArguments._[1];
 
-    // @ts-ignore - I think we're garunteed to have a [string, string][] at
-    // this point. If not, try to blame regex first.
-    const params: [string, string][] = process.argv[2].match(/\w+:[\w.]+/g)?.map(k => k.toLowerCase().split(':')) ?? [];
+    let sampleRate: number = 8000;
+    let mode: Modes = Modes.Bytebeat;
+    let stereo: boolean | null = null;
+    let seconds: number = 60;
+    let bitDepth: 8 | 16 = 16;
 
-    for (const [key, value] of params) {
-        switch (key) {
-            case 'r': case 'samplerate': {
-                sampleRate = parseInt(value, 10);
-                if (isNaN(sampleRate)) {
-                    process.exitCode = 1;
-                    printUsage();
-                    console.error("Invalid samplerate. Please use an integer.");
-                }
+    const sampleRateArgument = cliArguments["samplerate"]??cliArguments["r"];
+    const modeArgument = cliArguments["mode"]??cliArguments["m"];
+    const stereoArgument = cliArguments["stereo"]??cliArguments["s"];
+    const timeArgument = cliArguments["seconds"]??cliArguments["time"]??cliArguments["t"];
+    const depthArgument = cliArguments["depth"]??cliArguments["d"];
+    if(sampleRateArgument) {
+        sampleRate = parseInt(sampleRateArgument);
+        if(isNaN(sampleRate)){
+            console.error("samplerate is not an integer");
+            printUsage();
+            return 1;
+        }
+    }
+    if(modeArgument) {
+        switch(modeArgument) {
+            case 'bytebeat': case 'byte': case '0': case 0: {
+                mode = Modes.Bytebeat;
             } break;
-            case 'm': case 'mode': {
-                switch (value) {
-                    case '0': case 'byte': case 'bytebeat': {
-                        mode = Modes.Bytebeat;
-                    } break;
-                    case '1': case 'signed': case 'signed-bytebeat': {
-                        mode = Modes.SignedBytebeat;
-                    } break;
-                    case '2': case 'float': case 'floatbeat': {
-                        mode = Modes.Floatbeat;
-                    } break;
-                    case '3': case 'func': case 'funcbeat': {
-                        mode = Modes.Funcbeat;
-                    } break;
-                    default: {
-                        process.exitCode = 1;
-                        printUsage();
-                        console.error("Invalid mode. Please use:");
-                        console.error("Bytebeat    :    0, byte, or bytebeat");
-                        console.error("Signed bytebeat: 1, signed, or signed-bytebeat");
-                        console.error("Floatbeat   :    2, float, or floatbeat");
-                        console.error("Funcbeat    :    3, func, or funcbeat");
-                    }; break;
-                }
+            case 'signedBytebeat': case 'signed': case '1': case 1: {
+                mode = Modes.SignedBytebeat;
             } break;
-            case 's': case 'stereo': {
-                switch (value) {
-                    case 'n': case 'no': {
-                        stereo = false;
-                    } break;
-                    case 'x': case 'null': {
-                        stereo = null;
-                    } break;
-                    case 'y': case 'yes': {
-                        stereo = true;
-                    } break;
-                    default: {
-                        process.exitCode = 1;
-                        printUsage();
-                        console.error("Invalid stereo setting. Please use x, null, y, yes, n, or no");
-                    }; break;
-                }
+            case 'floatbeat': case 'float': case '2': case 2: {
+                mode = Modes.Floatbeat;
             } break;
-            case 't': case 'time': {
-                seconds = parseFloat(value);
-                if (isNaN(seconds)) {
-                    process.exitCode = 1;
-                    printUsage();
-                    console.error("Invalid duration. Please use a number.");
-                }
+            case 'funcbeat': case 'func': case '3': case 3: {
+                mode = Modes.Funcbeat;
             } break;
             default: {
-                process.exitCode = 1;
+                console.error("mode is not:\n"+
+                    "bytebeat, signedBytebeat, floatbeat, funcbeat,\n"+
+                    "byte,     signed,         float,     func,\n"+
+                    "0,        1,              2,         3."
+                );
                 printUsage();
-                console.error(`Invalid option ${key}.`);
-            }; break;
+                return 1;
+            }
+        }
+    }
+    if(stereoArgument) {
+        switch(stereoArgument) {
+            case '1': case 'y': case 'true': case 1: case true: {
+                stereo = true;
+            } break;
+            case '0': case 'n': case 'false': case 0: {
+                stereo = false;
+            } break;
+            case 'x': case 'null': case 'auto': {
+                stereo = null;
+            } break;
+            default: {
+                console.error("stereo is not:\n"+
+                    "bytebeat, signedBytebeat, floatbeat, funcbeat,\n"+
+                    "byte,     signed,         float,     func,\n"+
+                    "0,        1,              2,         3."
+                );
+                printUsage();
+                return 1;
+            }
+        }
+    }
+    if(timeArgument) {
+        seconds = parseFloat(timeArgument);
+        if(isNaN(seconds)){
+            console.error("seconds is not a number");
+            printUsage();
+            return 1;
+        }
+    }
+    if(depthArgument) {
+        switch(depthArgument) {
+            case '8': case 8: {
+                bitDepth = 8;
+            } break;
+            case '16': case 16: {
+                bitDepth = 16;
+            } break;
+            default: {
+            console.error("depth is not 8 or 16");
+            printUsage();
+            return 1;
+            }
         }
     }
 
-    if (process.exitCode != 1) {
-        console.log(`${Modes[mode]} at ${sampleRate}Hz stereo ${stereo} for ${seconds} seconds`);
-        readFile(inFile,{ encoding: 'utf8' }).then(data=>{
-            const result = renderCode(sampleRate, mode, data, outFile, seconds, stereo, false, 1, 0);
-            if(result.error != null) {
-                console.error(`Couldn't make the render, the function returned "${result.error}"`);
-            } else {
-                console.log(`Sucessfully rendered to ${result.file}`);
-            }
-        }).catch(reason=>{
-            console.error(`Couldn't open a file: ${reason}`);
-        })
-    }
-
-}
+    console.log(`${Modes[mode]} at ${sampleRate}Hz stereo ${stereo} for ${seconds} seconds`);
+    Deno.readTextFile(String(inFile)).then(data=>{
+        const result = renderCode(sampleRate, mode, data, String(outFile), seconds, stereo, bitDepth, false, 1, 0);
+        if(result.error != null) {
+            console.error(`Couldn't make the render, the function returned "${result.error}"`);
+        } else {
+            console.log(`Sucessfully rendered to ${result.file}`);
+        }
+    }).catch(reason=>{
+        console.error(`Couldn't open a file: ${reason}`);
+    });
+    return 0;
+})();

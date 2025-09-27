@@ -27,7 +27,8 @@ export type configType = {
         fileExtension: string,
         bitrate: number | null,
         extra: { [key: string]: (string | number)[] }
-    }
+    },
+    bitDepth: 8 | 16
 };
 
 export const renderbotConfig: configType = configData;

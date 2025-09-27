@@ -10,7 +10,7 @@
     "audio": {
         "sampleLimit": 2880000,
         "defaultSeconds": 30,
-        "maximumProcessingTime": 300
+        "maximumProcessingTime": 840
     },
     "credit": {
         "message": false,
@@ -23,5 +23,6 @@
         "fileExtension": ".mp3",
         "bitrate": 125,
         "extra": {}
-    }
+    },
+    "bitDepth": 8
 }

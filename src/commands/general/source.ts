@@ -21,7 +21,7 @@ export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody =
 	description: 'RenderBot is open source!',
 };
 
-export async function execute(interaction: import('discord.js').CommandInteraction) {
+export async function execute(interaction: import('discord.js').CommandInteraction): Promise<void> {
 	// interaction.user is the object representing the User who ran the command
 	// interaction.member is the GuildMember object, which represents the user in the specific guild
 	await interaction.reply( { ephemeral: true, content: 

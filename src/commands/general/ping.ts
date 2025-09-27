@@ -3,6 +3,6 @@ export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody =
 	description: 'Replies with polo!',
 };
 
-export async function execute(interaction: import('discord.js').CommandInteraction) {
+export async function execute(interaction: import('discord.js').CommandInteraction): Promise<void> {
 	await interaction.reply('Polo!');
 }

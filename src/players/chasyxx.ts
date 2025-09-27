@@ -33,9 +33,9 @@ export function parser(link: string): BytebeatSongData | null {
     if(hash.startsWith('4')) {
         const dataArr = Uint8Array.from(atob(hash.slice(1)), x => x.charCodeAt(0));
         let mode: BytebeatMode = 'Bytebeat';
-        if(dataArr[0] == 2) mode = 'Floatbeat';
-        else if(dataArr[0] == 3) mode = 'Funcbeat'
-        else if(dataArr[0] == 1) mode = 'Signed Bytebeat';
+        if(dataArr[0] === 2) mode = 'Floatbeat';
+        else if(dataArr[0] === 3) mode = 'Funcbeat'
+        else if(dataArr[0] === 1) mode = 'Signed Bytebeat';
         return { mode,
         sampleRate: new DataView(dataArr.buffer).getFloat32(1, true),
         code: inflateRaw(new Uint8Array(dataArr.buffer, 5), { to: 'string' }) }

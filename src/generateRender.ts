@@ -39,11 +39,11 @@ type Context = {
 function prepareWorker(worker: Worker, 
     fin?: (msg: {finished: renderOutputType}) => void | Promise<void>,
     update?: (percentage: number) => void | Promise<void>
-) {
+): void {
     let lastPercentage = 0;
     let percentage = 0;
     let cb = 0;
-    function rate() {
+    function rate(): void {
         if(percentage>lastPercentage) {
             update!(percentage);
             lastPercentage = percentage;
@@ -86,7 +86,7 @@ function prepareWorker(worker: Worker,
     })
 }
 
-function handleContext(builder: EmbedBuilder, context: Context) {
+function handleContext(builder: EmbedBuilder, context: Context): void {
     if(context.timeTruncation) {
         builder.addFields({ name: 'Time truncated',
             value: "Rendering took too long and I gave up.\nSome of the file is silent and the s/s value is less accurate."
@@ -122,10 +122,10 @@ function formatResponse(
             { name: "Size", value: formatByteCount(new Blob([decodedLink.songData.code]).size), inline: true },
             { name: "Render time", value: `${renderTime}s (${Math.round((duration/renderTime) * 100) / 100}s/s)`, inline: true }
         );
-        if(ffmpegTime != undefined) embed.addFields({ name: "FFmpeg time", value: `${ffmpegTime}s (${Math.round((duration/ffmpegTime) * 100) / 100}s/s)`, inline: true })
+        if(ffmpegTime !== undefined) embed.addFields({ name: "FFmpeg time", value: `${ffmpegTime}s (${Math.round((duration/ffmpegTime) * 100) / 100}s/s)`, inline: true })
         embed.setFooter({ text: getSplash() });
         if(credit) embed.addFields({ name: 'Triggered by', value: mention, inline: true});
-        if(decodedLink.playerData.domain == null)
+        if(decodedLink.playerData.domain === null)
             embed.addFields({ name: 'Detected player',
             value: `${decodedLink.playerData.name} \`${decodedLink.playerData.fileName}\``, inline: true})
         else
@@ -179,7 +179,7 @@ async function linkErrorError(respondee: Message | CommandInteraction, error: st
     });
 }
 
-function renderError(respondee: Message | CommandInteraction, responder: Message | null | InteractionResponse, error: string, emoji="\u2755") {
+function renderError(respondee: Message | CommandInteraction, responder: Message | null | InteractionResponse, error: string, emoji="\u2755"): void {
     if(respondee instanceof Message) respondee.react(emoji);
     if(responder instanceof InteractionResponse || (responder instanceof Message && responder?.editable)) {
         responder.edit({
@@ -228,7 +228,7 @@ async function decodeLink(link: string, respondee: Message | CommandInteraction,
         }
         return null;
     }
-    if(data == null) {
+    if(data === null) {
         if(print) await linkInvalidError(respondee);
         return null;
     }
@@ -253,7 +253,7 @@ export async function checkSampleLength(seconds: number, samplerate: number, res
     return true;
 }
 
-async function fileLengthError(responder: Message | null | InteractionResponse, fileSize: number, maxDuration: number, maxBitrate: number, context: Context) {
+async function fileLengthError(responder: Message | null | InteractionResponse, fileSize: number, maxDuration: number, maxBitrate: number, context: Context): Promise<void> {
     const embed = new EmbedBuilder()
         .setTitle("Error sending render")
         .setColor(0xeded4f)
@@ -349,15 +349,17 @@ function runFFmpeg(wavFile: string, finalFile: string, duration: number | null, 
             conversion.duration(duration);
         }
         for (const key in config.ffmpeg.extra) {
-            const value = config.ffmpeg.extra[key];
-            //@ts-ignore - That probably means something.
-            conversion[key].apply(conversion, value)
+            if(Object.hasOwn(config.ffmpeg.extra,key)) {
+                const value = config.ffmpeg.extra[key];
+                //@ts-ignore - That probably means something.
+                conversion[key].apply(conversion, value)
+            }
         }
         conversion.save(finalFile);
     });
 }
 
-async function sendRender(wavFile: string, respondee: Message | CommandInteraction, responder: Message | InteractionResponse | null, decodedLink: DecodedLink, context: Context, duration: number, renderStartTime: number, renderEndTime: number, textContent?: string) {
+async function sendRender(wavFile: string, respondee: Message | CommandInteraction, responder: Message | InteractionResponse | null, decodedLink: DecodedLink, context: Context, duration: number, renderStartTime: number, renderEndTime: number, textContent?: string): Promise<void> {
     const finalFile = wavFile.replace('.wav', config.ffmpeg.fileExtension);
     if (config.ffmpeg.enable) {
         responder?.edit("Running FFmpeg, please wait...");
@@ -406,9 +408,9 @@ async function sendRender(wavFile: string, respondee: Message | CommandInteracti
 }
 
 function getMode(mode: BytebeatMode): bytebeatModes {
-    return  mode == "Funcbeat" ? bytebeatModes.Funcbeat :
-            mode == "Floatbeat" ? bytebeatModes.Floatbeat :
-            mode == "Signed Bytebeat" ? bytebeatModes.SignedBytebeat :
+    return  mode === "Funcbeat" ? bytebeatModes.Funcbeat :
+            mode === "Floatbeat" ? bytebeatModes.Floatbeat :
+            mode === "Signed Bytebeat" ? bytebeatModes.SignedBytebeat :
                                          bytebeatModes.Bytebeat;
 }
 
@@ -436,7 +438,7 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
         const { error, file: wavFile, truncated } = data.finished;
         const renderEndTime = Date.now();
         context.timeTruncation = truncated;
-        if (error == null) {
+        if (error === null) {
             sendRender(wavFile,interaction,outputMessage,decodedLink,context,duration,renderStartTime,renderEndTime,"Output:");
         } else {
             renderError(interaction,outputMessage,error);
@@ -469,7 +471,7 @@ export async function renderCodeWrapperFile(interaction: CommandInteraction, cod
             const { error, file: wavFile, truncated } = data.finished;
             context.timeTruncation = truncated;
             const renderEndTime = Date.now();
-            if (error == null) {
+            if (error === null) {
                 sendRender(wavFile,interaction,outputMessage,{songData: {code, sampleRate, mode}, playerData: bytebeatPlayers[0]},context,duration,renderStartTime,renderEndTime,"Output:");
             } else {
                 renderError(interaction, outputMessage, error);
@@ -516,7 +518,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string, c
             const { error, file: wavFile, truncated } = data.finished;
             context.timeTruncation = truncated;
             const renderEndTime = Date.now();
-            if (error == null) {
+            if (error === null) {
                 sendRender(wavFile,message,outputMessage,decodedLink,context,duration,renderStartTime,renderEndTime, "Preview for link" + (count ? " "+count : "") + ":");
             } else {
                 renderError(message, outputMessage, error);

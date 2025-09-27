@@ -20,8 +20,8 @@ export {};
 
 // import { EventEmitter } from 'node:events';
 const chasyxxPlayerAdditions = {
-    /*bit*/        "bitC": function (x: number, y: number, z: number) { return x & y ? z : 0 },
-    /*bit reverse*/"br": function (x: number, size: number = 8) {
+    /*bit*/        "bitC": function (x: number, y: number, z: number): number { return x & y ? z : 0 },
+    /*bit reverse*/"br": function (x: number, size: number = 8): number {
         if (size > 32) { throw new Error("br() Size cannot be greater than 32") }
         let result = 0;
         for (let idx = 0; idx < size; idx++) {
@@ -29,10 +29,10 @@ const chasyxxPlayerAdditions = {
         }
         return result;
     },
-    /*sin that loops every 256 "steps", instead of every 2pi steps*/"sinf": function (x: number) { return Math.sin(x / (128 / Math.PI)) },
-    /*cos that loops every 256 "steps", instead of every 2pi steps*/"cosf": function (x: number) { return Math.cos(x / (128 / Math.PI)) },
-    /*tan that loops every 256 "steps", instead of every 2pi steps*/"tanf": function (x: number) { return Math.tan(x / (128 / Math.PI)) },
-    /*converts t into a string composed of it's bits, regex's that*/"regG": function (t: number, X: RegExp) { return X.test(t.toString(2)) }
+    /*sin that loops every 256 "steps", instead of every 2pi steps*/"sinf": function (x: number): number { return Math.sin(x / (128 / Math.PI)) },
+    /*cos that loops every 256 "steps", instead of every 2pi steps*/"cosf": function (x: number): number { return Math.cos(x / (128 / Math.PI)) },
+    /*tan that loops every 256 "steps", instead of every 2pi steps*/"tanf": function (x: number): number { return Math.tan(x / (128 / Math.PI)) },
+    /*converts t into a string composed of it's bits, regex's that*/"regG": function (t: number, X: RegExp): boolean { return X.test(t.toString(2)) }
     /*corrupt sound"crpt": function(x,y=8) {return chyx.br(chyx.br(x,y)+t,y)^chyx.br(t,y)},
     decorrupt sound"decrpt": function(x,y=8) {return chyx.br(chyx.br(x^chyx.br(t,y),y)-t,y)},*/
 }
@@ -57,7 +57,7 @@ export function progressBar(val: number, max: number, barSize: number = 20, term
  * @param width width of the visualization.
  * @param height height of the visualization.
  */
-export function visualizer(array: number[], width: number = 64, height: number = 8) {
+export function visualizer(array: number[], width: number = 64, height: number = 8): string {
     let out = ''
     for (let j = 0; j < height; j++) {
         for (let i = 0; i < width; i++) {
@@ -68,7 +68,7 @@ export function visualizer(array: number[], width: number = 64, height: number =
     return out
 }
 
-export function formatByteCount(bytes: number) {
+export function formatByteCount(bytes: number): string {
     if(bytes<1e3) return bytes + "B";
     let power1000, power1024;
     if (bytes < 1e6) {
@@ -174,7 +174,7 @@ export function renderCode(
     truncate: number = 300, printMillis: number = 100,): renderOutputType {
 
     const sampleCount = Math.max(samplerate * lengthValue, samplerate);
-    if (printStats == 2) ET.dispatchEvent(new CustomEvent("len",{detail: sampleCount}));
+    if (printStats === 2) ET.dispatchEvent(new CustomEvent("len",{detail: sampleCount}));
     let getValues: (x: number) => number;
     switch (mode) {
         case Modes.Bytebeat: default: getValues = (x: number) => (x & 255)/127.5-1; break;
@@ -186,25 +186,25 @@ export function renderCode(
     let truncated = false;
     const { params, values } = getFunctions(useChasyxxPlayerAdditions);
     let sampleIndex = 0;
-    if (printStats == 2) {
+    if (printStats === 2) {
         
         ET.dispatchEvent(new CustomEvent("compile",{detail: codeString.length}));
-    } else if (printStats == 1) {
+    } else if (printStats === 1) {
         console.log(`Compiling a code of length ${codeString.length}`);
         console.time('Compilation');
     }
     try {
-        if (mode == Modes.Funcbeat) {
+        if (mode === Modes.Funcbeat) {
             const out = new Function(...params, codeString).bind(globalThis, ...values);
-            if (printStats == 2) {
+            if (printStats === 2) {
                 
                 ET.dispatchEvent(new CustomEvent("compileFuncbeat"));
-            } else if (printStats == 1) {
+            } else if (printStats === 1) {
                 console.log(`Funcbeat sub-compilation...`);
                 console.time('Funcbeat');
             }
             codeFunc = out();
-            if (printStats == 1) console.timeEnd('Funcbeat');
+            if (printStats === 1) console.timeEnd('Funcbeat');
             try {
                 if (codeFunc === undefined || codeFunc === null || typeof codeFunc !== 'function') throw new TypeError("Funcbeat output was not a function");
             } catch (e) {
@@ -214,18 +214,18 @@ export function renderCode(
         } else {
             codeFunc = new Function(...params, 't', '_micSample', `return 0,\n${codeString || 0};`).bind(globalThis, ...values);
         }
-        if (printStats == 2) {
+        if (printStats === 2) {
             
             ET.dispatchEvent(new CustomEvent("prep"));
             
             ET.dispatchEvent(new CustomEvent("index",{detail: 0}));
-        } else if (printStats == 1) {
+        } else if (printStats === 1) {
             console.timeEnd('Compilation');
             console.log(`${progressBar(0, 1, 20, true)} 0 / ${sampleCount}`);
         }
         try {
-            const out = codeFunc(0, mode == Modes.Funcbeat ? samplerate : [0, 0, 0], 0, [0, 0, 0]);
-            if (stereo == null) {
+            const out = codeFunc(0, mode === Modes.Funcbeat ? samplerate : [0, 0, 0], 0, [0, 0, 0]);
+            if (stereo === null) {
                 try {
                     stereo = Array.isArray(out);
                 } catch {
@@ -233,7 +233,7 @@ export function renderCode(
                 }
             }
         } catch {
-            if (stereo == null) stereo = false;
+            if (stereo === null) stereo = false;
         }
     } catch (error) {
         if (error instanceof Error) {
@@ -250,7 +250,7 @@ export function renderCode(
     const lastValue: number[] = [0, 0];
     const startTime = Date.now();
     let lastTime = startTime;
-    if(printStats==1) console.time("Rendering");
+    if(printStats===1) console.time("Rendering");
     for (sampleIndex = 0; sampleIndex <= sampleCount; sampleIndex++) {
         const time = Date.now();
         if (truncate && (time - startTime) > (truncate * 1000)) {
@@ -259,10 +259,10 @@ export function renderCode(
         }
         if (time > (lastTime + printMillis)) {
             lastTime = time;
-            if (printStats == 2) {
+            if (printStats === 2) {
                 
                 ET.dispatchEvent(new CustomEvent("index",{detail: sampleIndex}));
-            } else if (printStats == 1) {
+            } else if (printStats === 1) {
                 console.log(`\x1b[1A${progressBar(sampleIndex, sampleCount, Deno.consoleSize().columns - String(sampleIndex).length - String(sampleCount).length - 7, true)} ${sampleIndex} / ${sampleCount}`);
             }
         }
@@ -279,8 +279,8 @@ export function renderCode(
             let out: number | number[] = NaN;
             try {
                 out = codeFunc(
-                    mode == Modes.Funcbeat ? sampleIndex / samplerate : sampleIndex, // Time (samples in non-funcbeat, seconds otherwise)
-                    mode == Modes.Funcbeat ? samplerate : micSample, // sample rate on funcbeat, mic sample otherwise
+                    mode === Modes.Funcbeat ? sampleIndex / samplerate : sampleIndex, // Time (samples in non-funcbeat, seconds otherwise)
+                    mode === Modes.Funcbeat ? samplerate : micSample, // sample rate on funcbeat, mic sample otherwise
                     sampleIndex, // funcbeat sample counter
                     micSample // funcbeat mic sample
                 );
@@ -322,17 +322,17 @@ export function renderCode(
                         channels |= 2;
                     }
                     if(bitDepth===16) {
-                        if (channels == 3) {
+                        if (channels === 3) {
                             dataView.setUint16(sampleIndex*2,lastValue[0] * 16383.25 + lastValue[1] * 16383.25 + 32768 & 65535);
-                        } else if (channels == 2) {
+                        } else if (channels === 2) {
                             dataView.setUint16(sampleIndex*2,lastValue[1]*32767.5&65535,true);
                         } else {
                             dataView.setUint16(sampleIndex*2,lastValue[0]*32767.5&65535,true);
                         }
                     } else {
-                        if (channels == 3) {
+                        if (channels === 3) {
                             dataView.setUint8(sampleIndex,lastValue[0] * 63.25 + lastValue[1] * 63.25 + 128 & 255);
-                        } else if (channels == 2) {
+                        } else if (channels === 2) {
                             dataView.setUint8(sampleIndex,lastValue[1]*127.5+128&255);
                         } else {
                             dataView.setUint8(sampleIndex,lastValue[0]*127.5+128&255);
@@ -349,7 +349,7 @@ export function renderCode(
             }
         } catch { /* TODO: cli would print an error here */ }
     }
-    if (printStats == 1) {
+    if (printStats === 1) {
         console.log(`\x1b[1A${progressBar(1, 1, Deno.consoleSize().columns - String(sampleIndex).length * 2 - 7, true)} ${sampleIndex} / ${sampleIndex}`);
         console.timeEnd("Rendering");
     }
@@ -375,13 +375,13 @@ export function renderCode(
     const headerString: string = 
     `Size 0x${buffer.byteLength.toString(16)} - ${stereo ? 2 : 1} channels - samplerate ${samplerate} - byterate ${samplerate * (stereo ? 2 : 1) * bitDepth / 8} - bytes per sample ${(stereo ? 2 : 1) * bitDepth / 8} - ${bitDepth} bits little endian`;
 
-    if (printStats == 2) {
+    if (printStats === 2) {
         if(!truncated)
             
             ET.dispatchEvent(new CustomEvent("index",{detail: sampleCount}));
         
         ET.dispatchEvent(new CustomEvent("done",{detail: {headerString, outputFile, bytes: formatByteCount(buffer.byteLength)}}));
-    } else if (printStats == 1) {
+    } else if (printStats === 1) {
         console.log(headerString);
         console.log(`FILE ${outputFile} SIZE ${formatByteCount(buffer.byteLength)}`);
     }

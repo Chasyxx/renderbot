@@ -22,7 +22,7 @@ import { parseArgs } from "@std/cli";
 
 const cliArguments = parseArgs(Deno.args);
 
-function printUsage(f: (text: string) => void = console.warn) {
+function printUsage(f: (text: string) => void = console.warn): void {
     f(`Usage: deno cli.ts <options> <infile> <outfile>`);
     f(`e.g. deno cli.ts -r 48000 -m funcbeat bootsinbed.js bootsinbed.wav`);
     f("");
@@ -138,7 +138,7 @@ Deno.exitCode = (function main(): number {
     console.log(`${Modes[mode]} at ${sampleRate}Hz stereo ${stereo} for ${seconds} seconds`);
     Deno.readTextFile(String(inFile)).then(data=>{
         const result = renderCode(sampleRate, mode, data, String(outFile), seconds, stereo, bitDepth, false, 1, 0);
-        if(result.error != null) {
+        if(result.error !== null) {
             console.error(`Couldn't make the render, the function returned "${result.error}"`);
         } else {
             console.log(`Sucessfully rendered to ${result.file}`);

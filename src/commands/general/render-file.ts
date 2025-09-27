@@ -58,7 +58,7 @@ export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody =
     ]
 };
 
-export async function execute(interaction: import('discord.js').CommandInteraction) {
+export async function execute(interaction: import('discord.js').CommandInteraction): Promise<void> {
     if(!(await checkBlacklist(interaction,true))) return;
     // const link: string = String(interaction.options.get('link',true).value||'invalid');
     // await renderCodeWrapperInteraction(interaction,link,duration);

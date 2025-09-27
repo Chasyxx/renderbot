@@ -73,7 +73,7 @@ export const splashes: string[] = [
     "That's your Q-Blast! Always try it when you enter a new room!"
 ];
 
-function getIdx() {
+function getIdx(): number {
     return Math.random()*splashes.length|0;
 }
 

@@ -52,6 +52,6 @@ export async function checkChannelBlacklist(src: CommandInteraction | Message, s
     return true;
 }
 
-export async function checkBlacklist(src: CommandInteraction | Message, send: boolean = false) {
+export async function checkBlacklist(src: CommandInteraction | Message, send: boolean = false): Promise<boolean> {
     return await checkServerBlacklist(src) && await checkChannelBlacklist(src,send);
 }

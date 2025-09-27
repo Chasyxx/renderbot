@@ -12,6 +12,26 @@
         "strict": true,
         "noImplicitAny": true,
         "strictNullChecks": true,
-        "noImplicitReturns": true
+        "noImplicitReturns": true,
+        "isolatedDeclarations": true,
+        "noErrorTruncation": true,
+        "noFallthroughCasesInSwitch": true,
+        "noImplicitOverride": true,
+        "noImplicitThis": true
+    },
+    "lint": {
+        "rules": {
+            "include": [
+                "eqeqeq",
+                "explicit-function-return-type",
+                "guard-for-in",
+                "no-non-null-asserted-optional-chain",
+                "no-self-compare",
+                "no-throw-literal",
+                "no-unsafe-negation",
+                "no-useless-rename"
+            ],
+            "tags": ["recommended"]
+        }
     }
 }

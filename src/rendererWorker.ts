@@ -20,6 +20,35 @@ import { renderCode, ET } from "./bytebeatToAudio.ts";
 import { workerData, isMainThread, parentPort } from "node:worker_threads";
 import { renderbotConfig } from "./import/config.ts";
 
+for (const name in globalThis) {
+  if(["postMessage","Deno"].includes(name)) continue;
+  if (Object.prototype.hasOwnProperty.call(globalThis, name)) {
+    // @ts-ignore - this is security we're talking about here
+    delete globalThis[name];
+  }
+}
+
+for (const name in Deno) {
+  if(["writeFileSync"].includes(name)) continue;
+  if (Object.prototype.hasOwnProperty.call(Deno, name)) {
+    // @ts-ignore - this is still security we're talking about here
+    delete Deno[name];
+  }
+}
+
+Object.getOwnPropertyNames(globalThis).forEach(name => {
+  // @ts-ignore - this is... still... security... we're talking about here.
+  const prop = globalThis[name];
+  const type = typeof prop;
+  if ((type === 'object' || type === 'function') && name !== 'globalThis') {
+    Object.freeze(prop);
+  }
+  if (type === 'function' && Object.prototype.hasOwnProperty.call(prop, 'prototype')) {
+    Object.freeze(prop.prototype);
+  }
+  Object.defineProperty(globalThis, name, { writable: false, configurable: false });
+});
+
 if (isMainThread) {
   console.error("Worker file shouldn't be run directly!");
 } else {

@@ -426,14 +426,30 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
     if(!(await checkSampleLength(duration,decodedLink.songData.sampleRate,interaction))) return;
     const outputMessage = await interaction.reply({ content: "Rendering started, Please wait...\n-# "+getSplash(), allowedMentions: { repliedUser: false } });
     const renderStartTime = Date.now();
-    const worker = new Worker('./rendererWorker.ts', { workerData: {
-        UC: decodedLink.playerData.hasAdditions,
-        SR: decodedLink.songData.sampleRate,
-        M:  getMode(decodedLink.songData.mode),
-        D: duration,
-        code: decodedLink.songData.code,
-        N: `../render/render-${crypto.randomUUID()}.wav`,
-    } });
+    const worker = new Worker('./rendererWorker.ts', {
+        workerData: {
+            UC: decodedLink.playerData.hasAdditions,
+            SR: decodedLink.songData.sampleRate,
+            M:  getMode(decodedLink.songData.mode),
+            D: duration,
+            code: decodedLink.songData.code,
+            N: `../render/render-${crypto.randomUUID()}.wav`,
+        },
+        // @ts-ignore - see below
+        type: "module",
+        // @ts-ignore - This isn't yet included in the d.ts files but i see it officially documented so it should work
+        deno: {
+            permissions: {
+                write: [
+                    "../render/"
+                ],
+                read: false,
+                env: false,
+                net: false,
+                run: false
+            }
+        }
+    });
     prepareWorker(worker, (data: {finished: renderOutputType}) => {
         const { error, file: wavFile, truncated } = data.finished;
         const renderEndTime = Date.now();
@@ -459,14 +475,30 @@ export async function renderCodeWrapperFile(interaction: CommandInteraction, cod
         };
         await outputMessage.edit({ content: "Rendering started, please wait...\n-# "+getSplash(), allowedMentions: { repliedUser: false } });
         const renderStartTime = Date.now();
-        const worker = new Worker('./rendererWorker.ts', { workerData: {
-            UC: false,
-            SR: sampleRate,
-            M: getMode(mode),
-            D: duration,
-            code: code,
-            N: `../render/file-${crypto.randomUUID()}.wav`,
-        } });
+        const worker = new Worker('./rendererWorker.ts', {
+            workerData: {
+                UC: false,
+                SR: sampleRate,
+                M: getMode(mode),
+                D: duration,
+                code: code,
+                N: `../render/file-${crypto.randomUUID()}.wav`,
+            },
+            // @ts-ignore - see below
+            type: "module",
+            // @ts-ignore - This isn't yet included in the d.ts files but i see it officially documented so it should work
+            deno: {
+                permissions: {
+                    write: [
+                        "../render/"
+                    ],
+                    read: false,
+                    env: false,
+                    net: false,
+                    run: false
+                }
+            }
+        });
         prepareWorker(worker, (data: {finished: renderOutputType}) => {
             const { error, file: wavFile, truncated } = data.finished;
             context.timeTruncation = truncated;
@@ -506,14 +538,30 @@ export async function renderCodeWrapperMessage(message: Message, link: string, c
             ffmpegError: null
         };
         const renderStartTime = Date.now();
-        const worker = new Worker('./rendererWorker.ts', { workerData: {
-            UC: decodedLink.playerData.hasAdditions,
-            SR: decodedLink.songData.sampleRate,
-            M:  getMode(decodedLink.songData.mode),
-            D: duration,
-            code: decodedLink.songData.code,
-            N: `../render/message-${crypto.randomUUID()}.wav`,
-        } });
+        const worker = new Worker('./rendererWorker.ts', { 
+            workerData: {
+                UC: decodedLink.playerData.hasAdditions,
+                SR: decodedLink.songData.sampleRate,
+                M:  getMode(decodedLink.songData.mode),
+                D: duration,
+                code: decodedLink.songData.code,
+                N: `../render/message-${crypto.randomUUID()}.wav`,
+            },
+            // @ts-ignore - see below
+            type: "module",
+            // @ts-ignore - This isn't yet included in the d.ts files but i see it officially documented so it should work
+            deno: {
+                permissions: {
+                    write: [
+                        "../render/"
+                    ],
+                    read: false,
+                    env: false,
+                    net: false,
+                    run: false
+                }
+            }
+        });
         prepareWorker(worker, (data: {finished: renderOutputType}) => {
             const { error, file: wavFile, truncated } = data.finished;
             context.timeTruncation = truncated;

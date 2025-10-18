@@ -92,7 +92,7 @@ export function formatByteCount(bytes: number): string {
 
 export const ET = new EventTarget();
 
-type codeValue = (keyof typeof Math | keyof typeof chasyxxPlayerAdditions | typeof Math.floor | typeof globalThis);
+type codeValue = (keyof typeof Math | keyof typeof chasyxxPlayerAdditions | typeof Math.floor | typeof globalThis | null);
 
 /**
  * Get a list of functions for usage in bytebeat, including "Math" functions and potentially exotic functions.
@@ -117,8 +117,8 @@ export function getFunctions(useChasyxxPlayerAdditions: boolean): ({ params: str
         values.push(...newValues);
     }
 
-    params.push('int', 'window');
-    values.push(Math.floor, globalThis);
+    params.push('int', 'window', 'postMessage', 'Deno');
+    values.push(Math.floor, globalThis, null, null);
 
     return { params, values };
 }

@@ -69,7 +69,7 @@ export async function execute(interaction: import('discord.js').ChatInputCommand
     else if(mode1==="func") mode = "Funcbeat";
     const sampleRate: number = Math.abs(Number(interaction.options.get('samplerate',false)?.value??0))||8000;
     const duration: number = Math.abs(Number(interaction.options.get('duration',false)?.value??0))||renderbotConfig.audio.defaultSeconds;
-    if(!(await checkSampleLength(duration,sampleRate,interaction))) return;
+    if(!(checkSampleLength(duration,sampleRate,interaction))) return;
     const url: URL = new URL(interaction.options.get('file',true)!.attachment!.url);
     const message = await interaction.reply("Downloading code, this might take a moment...");
     fetch(url).then((v)=>{

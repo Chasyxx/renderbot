@@ -21,8 +21,8 @@
         "location": "/usr/bin/ffmpeg",
         "format": "mp3",
         "fileExtension": ".mp3",
-        "bitrate": 125,
+        "bitrate": 192,
         "extra": {}
     },
-    "bitDepth": 8
+    "bitDepth": 16
 }

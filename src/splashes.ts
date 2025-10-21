@@ -48,7 +48,7 @@ export const splashes: string[] = [
     "I dunno, man, I *might* have eighty televisions, but if I do, *they're all 1080p!*",
     "Reject all else, 8 bit computing is the way!",
     "Windows systems when you remove system32 -> :(",
-    "The creator of this bot uses Arch Linux, and they'd like to let you anow of that fact.",
+    "The creator of this bot uses Arch Linux, and they'd like to let you know of that fact.",
     "Where's my pet eldrich horror now?",
     "galvanize that steel and squAre it",
     "Sorry, maximum call stack size exceeded!",
@@ -69,7 +69,8 @@ export const splashes: string[] = [
     "Check out the [user manual](<https://www.youtube.com/watch?v=dQw4w9WgXcQ>)!",
     "\"As hard as it may be, sometimes you have to leave from what leaves you in a worse place.\" - Chasyxx, May 14th 2025",
     "Why is there a GDI malware server that's mislabelled as \"bytebeat\"?", // reference to an april fools joke
-    "How's BoxedBot?", // another one
+    "How's BoxedBot?", // another reference
+    "I can't wait to see BYTEBEAT 3", // hehe
     "That's your Q-Blast! Always try it when you enter a new room!"
 ];
 

@@ -156,11 +156,11 @@ try {
  * @param samplerate Samplerate to use.
  * @param mode Mode to use. 0: Bytebeat, 1: Signed, 2: Floatbeat, 3: Funcbeat.
  * @param codeString a string of the JS bytebeat code. Must be the raw code, not a link or filename.
- * @param lengthValue How many seconds to render. Defaults to 10.
+ * @param seconds How many seconds to render. Defaults to 10.
  * @param stereo Whether the code is stereo. Use `null` to autodetect.
  * @param useChasyxxPlayerAdditions Whether the exotic functions should be added.
  * @param printStats Whether stats should be printed. 0: No. 1: Yes. 2: Send events on EE.
- * @param filename A filename to use. Use `null` for render-(UUIDv4).
+ * @param filename A filename to use.
  * @param truncate Whether the function can truncate the output.
  * If rendering time takes longer then this many seconds it will be truncated.
  * 
@@ -169,23 +169,38 @@ try {
  */
 export function renderCode(
     samplerate: number, mode: Modes, codeString: string, filename: string,
-    lengthValue: number = 10, stereo: boolean | null, bitDepth: 8 | 16 = 8,
+    seconds: number = 10, stereo: boolean | null, bitDepth: 8 | 16 = 8,
     useChasyxxPlayerAdditions: boolean, printStats: 0 | 1 | 2,
-    truncate: number = 300, printMillis: number = 100,): renderOutputType {
+    truncate: number = 300, printMillis: number = 100): renderOutputType {
 
-    const sampleCount = Math.max(samplerate * lengthValue, samplerate);
-    if (printStats === 2) ET.dispatchEvent(new CustomEvent("len",{detail: sampleCount}));
+    if(codeString.trim()==="65535") {
+        return {
+            error: "What you tryna pull??",
+            file: null,
+            truncated: null
+        };
+    }
+
+    const sampleCount = Math.max(samplerate * seconds, samplerate);
+    const lastValue: number[] = [0, 0];
+    const startTime = Date.now();
+    let lastTime = startTime;
+    let codeFunc: ((t: number, SRoI: number | micSampleType, samples: number, I: micSampleType) => number[] | number) = () => { return 0; };
+    let truncated = false;
+    let sampleIndex = 0;
     let getValues: (x: number) => number;
+
+    if (printStats === 2) ET.dispatchEvent(new CustomEvent("len",{detail: sampleCount}));
+    
     switch (mode) {
         case Modes.Bytebeat: default: getValues = (x: number) => (x & 255)/127.5-1; break;
         case Modes.SignedBytebeat: getValues = (x: number) => (x + 128 & 255)/127.5-1; break;
         case Modes.Floatbeat:
         case Modes.Funcbeat: getValues = (x: number) => Math.max(-1, Math.min(1, x)); break;
     }
-    let codeFunc: ((t: number, SRoI: number | micSampleType, samples: number, I: micSampleType) => number[] | number) = () => { return 0; };
-    let truncated = false;
+
     const { params, values } = getFunctions(useChasyxxPlayerAdditions);
-    let sampleIndex = 0;
+    
     if (printStats === 2) {
         
         ET.dispatchEvent(new CustomEvent("compile",{detail: codeString.length}));
@@ -233,6 +248,8 @@ export function renderCode(
                 }
             }
         } catch {
+            /** @todo add error logging here */
+        } finally {
             if (stereo === null) stereo = false;
         }
     } catch (error) {
@@ -244,14 +261,14 @@ export function renderCode(
             return { error: "Compilation error: " + String(error), file: null, truncated: null };
         }
     }
-    const songByteCount = (sampleCount * (stereo ? 2 : 1) * bitDepth / 8);
+
+    const bytesPerSample = (stereo ? 2 : 1) * (bitDepth / 8);
+    const songByteCount = sampleCount * bytesPerSample;
     const buffer: ArrayBuffer = new ArrayBuffer(44 + songByteCount);
     const dataView = new DataView(buffer, 44, songByteCount);
-    const lastValue: number[] = [0, 0];
-    const startTime = Date.now();
-    let lastTime = startTime;
+    
     if(printStats===1) console.time("Rendering");
-    for (sampleIndex = 0; sampleIndex <= sampleCount; sampleIndex++) {
+    for (sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++) {
         const time = Date.now();
         if (truncate && (time - startTime) > (truncate * 1000)) {
             truncated = true;
@@ -356,19 +373,19 @@ export function renderCode(
 
     const headerView = new DataView(buffer,0,44);
 
-    headerView.setUint32(0,  0x52494646);                                        // "RIFF"
-    headerView.setUint32(4,  buffer.byteLength-8,true);                          // Size of all data beyond this point
-    headerView.setUint32(8,  0x57415645);                                        // "WAVE"
-    headerView.setUint32(12, 0x666d7420);                                        // "fmt "
-    headerView.setUint32(16, 16,true);                                           // The format chunk size is 16 bytes long
-    headerView.setUint16(20, 1,true);                                            // PCM marker
-    headerView.setUint16(22, stereo ? 2 : 1,true);                               // Channel count
-    headerView.setUint32(24, samplerate,true);                                   // Sample rate
-    headerView.setUint32(28, samplerate * (stereo ? 2 : 1) * bitDepth / 8,true); // samplerate*channels*bitdepth/8
-    headerView.setUint16(32, (stereo ? 2 : 1) * bitDepth / 8,true);              // Same thing without samplerate
-    headerView.setUint16(34, bitDepth,true);                                     // Bit depth
-    headerView.setUint32(36, 0x64617461);                                        // "data"
-    headerView.setUint32(40, songByteCount);                                     // Song byte count (size of the data chunk)
+    headerView.setUint32(0,  0x52494646);                        // "RIFF"
+    headerView.setUint32(4,  buffer.byteLength-8, true);         // Size of all data beyond this point
+    headerView.setUint32(8,  0x57415645);                        // "WAVE"
+    headerView.setUint32(12, 0x666d7420);                        // "fmt "
+    headerView.setUint32(16, 16, true);                          // The format chunk size is 16 bytes long
+    headerView.setUint16(20, 1, true);                           // PCM marker
+    headerView.setUint16(22, stereo ? 2 : 1, true);              // Channel count
+    headerView.setUint32(24, samplerate, true);                  // Sample rate
+    headerView.setUint32(28, samplerate * bytesPerSample, true); // samplerate*channels*bitdepth/8
+    headerView.setUint16(32, bytesPerSample, true);              // Same thing without samplerate
+    headerView.setUint16(34, bitDepth, true);                    // Bit depth
+    headerView.setUint32(36, 0x64617461);                        // "data"
+    headerView.setUint32(40, songByteCount, true);               // Song byte count (size of the data chunk)
 
     const outputFile = filename;
 

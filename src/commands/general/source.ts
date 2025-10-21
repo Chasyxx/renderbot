@@ -16,6 +16,8 @@
 
 //     Email contact is at creset200@gmail.com
 
+import { MessageFlags } from "discord.js";
+
 export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody = {
 	name: 'source',
 	description: 'RenderBot is open source!',
@@ -24,9 +26,9 @@ export const data: import('discord.js').RESTPostAPIApplicationCommandsJSONBody =
 export async function execute(interaction: import('discord.js').ChatInputCommandInteraction): Promise<void> {
 	// interaction.user is the object representing the User who ran the command
 	// interaction.member is the GuildMember object, which represents the user in the specific guild
-	await interaction.reply( { ephemeral: true, content: 
+	await interaction.reply( { content: 
     `RenderBot is open source! You can find this program's code on <https://github.com/Chasyxx/renderbot>.
 
 The license for this program is GNU Affero General Public Licence version 3, which ensures you can modify and/or distrube this program under certain conditions.
-See the COPYING file in the source code or <https://www.gnu.org/licenses/agpl-3.0.en.html>.`} );
+See the COPYING file in the source code or <https://www.gnu.org/licenses/agpl-3.0.en.html>.`, flags: [ MessageFlags.Ephemeral ]} );
 }

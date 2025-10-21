@@ -18,13 +18,14 @@
 
 export {};
 
-import { AttachmentBuilder, EmbedBuilder, CommandInteraction, Message, InteractionResponse } from 'discord.js';
+import { AttachmentBuilder, EmbedBuilder, CommandInteraction, Message, InteractionResponse, MessageFlags } from 'discord.js';
 import { Buffer } from 'node:buffer';
 import { Worker } from 'node:worker_threads';
 import { progressBar, Modes as bytebeatModes, renderOutputType, formatByteCount } from './bytebeatToAudio.ts';
 import { renderbotConfig as config } from './import/config.ts';
 import { BytebeatMode } from './import/bytebeatdata.ts';
-import ffmpeg from 'fluent-ffmpeg'; // TODO: Remove use of this package! It is no longer supported!
+/** @todo Remove use of this package! It is no longer supported! */
+import ffmpeg from 'fluent-ffmpeg'; 
 import { bytebeatPlayers, DecodedLink, decodeLinkToSongData } from './players/root.ts';
 import { getSplash } from './splashes.ts';
 
@@ -158,24 +159,38 @@ async function linkInvalidError(respondee: Message | CommandInteraction): Promis
         embed.addFields([{ name: player.name, value: player.domain ?? "no domain" }]);
         counter++;
     }
-    await respondee.reply({
+    if(respondee instanceof CommandInteraction)
+        await respondee.reply({
+            embeds: [
+                embed
+            ],
+            flags: [ MessageFlags.Ephemeral ]
+        });
+    
+    else await respondee.reply({
         embeds: [
             embed
-        ],
-        ephemeral: respondee instanceof CommandInteraction ? true : undefined
+        ]
     });
 }
 
 async function linkErrorError(respondee: Message | CommandInteraction, error: string): Promise<void> {
-    await respondee.reply({
+    const embed = new EmbedBuilder()
+        .setColor(0xed4f4f)
+        .setTitle("Error decoding link")
+        .setDescription("Ensure the link is valid.")
+        .addFields({ name: "Error", value: "```"+(error.length > 994 ? `${error.slice(0,989)}(...)` : error)+"```" });
+    if(respondee instanceof CommandInteraction)
+        await respondee.reply({
+            embeds: [
+                embed
+            ],
+            flags: [ MessageFlags.Ephemeral ]
+        });
+    else await respondee.reply({
         embeds: [
-            new EmbedBuilder()
-            .setColor(0xed4f4f)
-            .setTitle("Error decoding link")
-            .setDescription("Ensure the link is valid.")
-            .addFields({ name: "Error", value: "```"+(error.length > 994 ? `${error.slice(0,989)}(...)` : error)+"```" })
-        ],
-        ephemeral: respondee instanceof CommandInteraction ? true : undefined
+            embed
+        ]
     });
 }
 
@@ -200,7 +215,7 @@ function renderError(respondee: Message | CommandInteraction, responder: Message
                 .setTitle("Error while rendering")
                 .setDescription("```"+(error.length > 994 ? `${error.slice(0,989)}(...)` : error)+"```")
             ],
-            ephemeral: (respondee instanceof CommandInteraction) ? true : undefined,
+            flags: [ MessageFlags.Ephemeral ],
             allowedMentions: { repliedUser: false } 
         });
     } else {
@@ -237,17 +252,32 @@ async function decodeLink(link: string, respondee: Message | CommandInteraction,
     return data;
 }
 
-export async function checkSampleLength(seconds: number, samplerate: number, respondee: Message | CommandInteraction): Promise<boolean> {
+export function checkSampleLength(seconds: number, samplerate: number, respondee: Message | CommandInteraction): boolean {
     if (seconds * samplerate > config.audio.sampleLimit) {
-        await respondee.reply({
-            embeds: [
-                new EmbedBuilder()
-                .setColor(0xed4f4f)
-                .setTitle(`Duration may not be greater than ${config.audio.sampleLimit} samples.`)
-                .setDescription(`The longest you can render is ${Math.floor(config.audio.sampleLimit / samplerate)} seconds.`)
-                // .setFooter({ text: `${songData.sampleRate}Hz * ${duration}s = ${songData.sampleRate * duration} samples.` })
-            ], ephemeral: respondee instanceof CommandInteraction ? true : undefined
-        });
+        const embed = new EmbedBuilder()
+            .setColor(0xed4f4f)
+            .setTitle(`Duration may not be greater than ${config.audio.sampleLimit.toLocaleString()} samples.`)
+            .setDescription(`The longest you can render is ${Math.floor(config.audio.sampleLimit / samplerate).toLocaleString()} seconds.`);
+        if(respondee instanceof CommandInteraction)
+            respondee.reply({
+                embeds: [ embed ], flags: [ MessageFlags.Ephemeral ]
+            });
+        else respondee.reply({
+                embeds: [ embed ]
+            });
+        return false;
+    } else if(samplerate > config.audio.sampleLimit) {
+        const embed = new EmbedBuilder()
+            .setColor(0xed4f4f)
+            .setTitle(`Samplerate can't be greater than ${config.audio.sampleLimit.toLocaleString()}Hz`)
+            .setFooter({ "text": "And you thought I wouldn't notice...?" });
+                if(respondee instanceof CommandInteraction)
+            respondee.reply({
+                embeds: [ embed ], flags: [ MessageFlags.Ephemeral ]
+            });
+        else respondee.reply({
+                embeds: [ embed ]
+            });
         return false;
     }
     return true;
@@ -362,7 +392,10 @@ function runFFmpeg(wavFile: string, finalFile: string, duration: number | null, 
 async function sendRender(wavFile: string, respondee: Message | CommandInteraction, responder: Message | InteractionResponse | null, decodedLink: DecodedLink, context: Context, duration: number, renderStartTime: number, renderEndTime: number, textContent?: string): Promise<void> {
     const finalFile = wavFile.replace('.wav', config.ffmpeg.fileExtension);
     if (config.ffmpeg.enable) {
-        responder?.edit("Running FFmpeg, please wait...");
+        responder?.edit({
+            content: "Running FFmpeg, please wait...",
+            allowedMentions: { repliedUser: false }
+        });
         const errorCallback = async (error: Error)=>{
             context.ffmpegError = error;
             const result = await sendFile(respondee, responder, wavFile, decodedLink, context, duration, [renderStartTime, renderEndTime], undefined, textContent);
@@ -380,7 +413,7 @@ async function sendRender(wavFile: string, respondee: Message | CommandInteracti
                     if(result2!==null) {
                         context.fileSizeTruncation = result2.duration;
                         responder?.edit(`File still too large!? Truncating to ${result2.duration} seconds...`);
-                        runFFmpeg(wavFile, finalFile, result2.duration, context.fileSizeBitrateReduction, async (time: [ number, number ])=>{
+                        runFFmpeg(wavFile, finalFile, context.fileSizeTruncation, context.fileSizeBitrateReduction, async (time: [ number, number ])=>{
                             const result3 = await sendFile(respondee, responder, finalFile, decodedLink, context, duration, [renderStartTime, renderEndTime], time, textContent);
                             if(result3!==null) {
                                 fileLengthError(responder, result3.fileSize, result1.duration, context.fileSizeBitrateReduction!, context);
@@ -423,7 +456,7 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
         fileSizeTruncation: null,
         ffmpegError: null
     };
-    if(!(await checkSampleLength(duration,decodedLink.songData.sampleRate,interaction))) return;
+    if(!(checkSampleLength(duration,decodedLink.songData.sampleRate,interaction))) return;
     const outputMessage = await interaction.reply({ content: "Rendering started, Please wait...\n-# "+getSplash(), allowedMentions: { repliedUser: false } });
     const renderStartTime = Date.now();
     const worker = new Worker('./rendererWorker.ts', {
@@ -437,7 +470,7 @@ export async function renderCodeWrapperInteraction(interaction: CommandInteracti
         },
         // @ts-ignore - see below
         type: "module",
-        // @ts-ignore - This isn't yet included in the d.ts files but i see it officially documented so it should work
+        // @ts-ignore - needs --unstable-worker-options but should otherwise be fine
         deno: {
             permissions: {
                 write: [
@@ -486,7 +519,7 @@ export async function renderCodeWrapperFile(interaction: CommandInteraction, cod
             },
             // @ts-ignore - see below
             type: "module",
-            // @ts-ignore - This isn't yet included in the d.ts files but i see it officially documented so it should work
+            // @ts-ignore - needs --unstable-worker-options but should otherwise be fine
             deno: {
                 permissions: {
                     write: [
@@ -524,6 +557,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string, c
         const decodedLink: DecodedLink | null = await decodeLink(link, message, false);
         if(decodedLink===null) return;
         const duration = Math.min(config.audio.sampleLimit / decodedLink.songData.sampleRate, config.audio.defaultSeconds);
+        if(!checkSampleLength(duration,decodedLink.songData.sampleRate, message)) return;
         let outputMessage;
         try {
             outputMessage = await message.reply({ content: "Preview generation started. Please wait..." + (count ? ` x${count}\n-# `: "\n-# ") + getSplash(), allowedMentions: { repliedUser: false } });
@@ -549,7 +583,7 @@ export async function renderCodeWrapperMessage(message: Message, link: string, c
             },
             // @ts-ignore - see below
             type: "module",
-            // @ts-ignore - This isn't yet included in the d.ts files but i see it officially documented so it should work
+            // @ts-ignore - needs --unstable-worker-options but should otherwise be fine
             deno: {
                 permissions: {
                     write: [

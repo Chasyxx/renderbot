@@ -16,7 +16,7 @@
 
 //     Email contact is at creset200@gmail.com
 
-import { Message, EmbedBuilder, CommandInteraction } from "discord.js";
+import { Message, EmbedBuilder, CommandInteraction, MessageFlags } from "discord.js";
 export {};
 
 import { renderbotConfig as config } from "./config.ts";
@@ -35,7 +35,9 @@ export async function checkServerBlacklist(src: CommandInteraction | Message): P
         builder.setTitle("This server has been blocked by RenderBot");
         builder.setDescription("Please remove the bot.");
         builder.setColor(0xed4f4f);
-        src.reply({ embeds: [ builder ], ephemeral: false }).catch((e)=>{ console.error(e) });
+        if(src instanceof CommandInteraction)
+            src.reply({ embeds: [ builder ], flags: [ MessageFlags.Ephemeral ] }).catch((e)=>{ console.error(e) });
+        else src.reply({ embeds: [ builder ] }).catch((e)=>{ console.error(e) });
         return false;
     }
     return true;
@@ -45,7 +47,9 @@ export async function checkChannelBlacklist(src: CommandInteraction | Message, s
     const hash = await hashString(src.channelId);
     if(config.disabledChannels.includes(hash)) {
         if(send) {
-            src.reply({ content: "Sorry, you can't use me in this channel!", ephemeral: true }).catch((e)=>{ console.error(e) });
+            if(src instanceof CommandInteraction)
+                src.reply({ content: "Sorry, you can't use me in this channel!", flags: [ MessageFlags.Ephemeral ] }).catch((e)=>{ console.error(e) });
+            else src.reply({ content: "Sorry, you can't use me in this channel!" }).catch((e)=>{ console.error(e) });
         }
         return false;
     }

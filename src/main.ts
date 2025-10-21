@@ -16,7 +16,7 @@
 
 //     Email contact is at creset200@gmail.com
 
-import { Client, Collection, CommandInteraction, Events, GatewayIntentBits } from 'discord.js';
+import { Client, Collection, CommandInteraction, Events, GatewayIntentBits, MessageFlags } from 'discord.js';
 import ffmpeg from 'fluent-ffmpeg';
 import { renderbotConfig as config } from './import/config.ts';
 if(config.ffmpeg.enable) ffmpeg.setFfmpegPath(config.ffmpeg.location);
@@ -63,7 +63,7 @@ djsClient.on(Events.InteractionCreate, async (interaction) => {
 
         if (!command) {
             console.error(`No command matching ${interaction.commandName} was found.`);
-            await interaction.reply({ content: 'Couldn\'t find that command!', ephemeral: true });
+            await interaction.reply({ content: 'Couldn\'t find that command!', flags: [ MessageFlags.Ephemeral ] });
             return;
         }
 
@@ -73,9 +73,9 @@ djsClient.on(Events.InteractionCreate, async (interaction) => {
 	    try {
             console.error(error);
             if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+                await interaction.followUp({ content: 'There was an error while executing this command!', flags: [ MessageFlags.Ephemeral ] });
             } else {
-                await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+                await interaction.reply({ content: 'There was an error while executing this command!', flags: [ MessageFlags.Ephemeral ] });
             }
 	    } catch(error) {
 		    console.error(error, "Even worse!!");
